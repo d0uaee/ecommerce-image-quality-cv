@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "Bash(.\\\\.venv\\\\Scripts\\\\python.exe _batch_analyze.py)",
+      "Bash(.\\\\.venv\\\\Scripts\\\\pip.exe freeze *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\ahadj\\\\.cache\\\\huggingface\\\\hub\\\\models--Salesforce--blip-image-captioning-base\\\\blobs\" -File | ForEach-Object { \"$\\($_.Name.Substring\\(0,16\\)\\)  $\\([math]::Round\\($_.Length/1MB,1\\)\\) MB\" })",
+      "PowerShell($f = Get-Item \"C:\\\\Users\\\\ahadj\\\\.cache\\\\huggingface\\\\hub\\\\models--Salesforce--blip-image-captioning-base\\\\snapshots\\\\82a37760796d32b1411fe092ab5d4e227313294b\\\\pytorch_model.bin\" -ErrorAction SilentlyContinue; if \\($f\\) { \"$\\($f.Name\\)  $\\([math]::Round\\($f.Length/1MB,1\\)\\) MB\" } else { \"FICHIER INTROUVABLE\" })"
+    ]
+  }
+}
