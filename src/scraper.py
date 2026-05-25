@@ -1,69 +1,100 @@
 """
-Jumia Morocco product image scraper.
+Polite scraper for collecting clean e-commerce product images.
 
-Scrapes ~100 images per category (electronics, clothing, home_appliances)
-and saves them to data/raw_images/{category}/ with metadata in data/metadata.csv.
+Goal:
+- gather 200-300 good product images from Amazon, Zara and Shein
+- keep only the three supported families:
+  shoes, clothing, portable_electronics
+- save image + text metadata for a zero-shot dataset
 
-Respects robots.txt:
-- Clearly identifies as a bot in User-Agent
-- Stays well under 200 req/min via 2-5s random delays between requests
-- Avoids disallowed paths (facet filters, user accounts, etc.)
+Notes:
+- this is a best-effort scraper based on public HTML, JSON-LD and meta tags
+- it prioritizes high-resolution image URLs and warns when an image is below 500 px
+- some pages can block bots or change markup; failures are logged and skipped
 """
+
+from __future__ import annotations
 
 import csv
 import io
+import json
 import logging
-import os
 import random
+import re
+import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urljoin
+from typing import Iterable
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 from PIL import Image
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-BASE_URL = "https://www.jumia.ma"
+from config import ALLOWED_CATEGORIES, RAW_IMAGES_DIR  # noqa: E402
 
-CATEGORIES = {
-    "electronics": "/telephone-tablette/",
-    "clothing": "/fashion-mode/",
-    "home_appliances": "/mlp-electromenager/",
-}
 
-IMAGES_PER_CATEGORY = 100
-MAX_PAGES_PER_CATEGORY = 10   # safety cap; 20 products/page × 10 = 200 candidates
-
-# Delays (seconds) — keeps us well under the 200 req/min robots.txt limit
+METADATA_CSV = PROJECT_ROOT / "data" / "metadata.csv"
+TARGET_TOTAL_MIN = 200
+TARGET_TOTAL_MAX = 300
+TARGET_PER_CATEGORY = 80
 REQUEST_DELAY_MIN = 2.0
-REQUEST_DELAY_MAX = 5.0
-
-TIMEOUT = 15  # seconds per request
+REQUEST_DELAY_MAX = 4.5
+TIMEOUT = 20
+MIN_ACCEPTABLE_SIDE = 500
 
 HEADERS = {
     "User-Agent": (
-        "EcommerceImageQualityBot/1.0 "
-        "(University computer-vision project; "
-        "contact: student-research@university.edu; "
-        "respects robots.txt)"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0 Safari/537.36 "
+        "EcommerceImageQualityPFE/1.0"
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
 }
 
-# Paths
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = PROJECT_ROOT / "data"
-RAW_IMAGES_DIR = DATA_DIR / "raw_images"
-METADATA_CSV = DATA_DIR / "metadata.csv"
 
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
+SITE_SEEDS = {
+    "shoes": [
+        "https://www.zara.com/fr/fr/femme-chaussures-l1251.html",
+        "https://www.zara.com/fr/fr/homme-chaussures-l769.html",
+        "https://www.shein.com/pdsearch/shoes/",
+        "https://www.amazon.fr/s?k=shoes",
+    ],
+    "clothing": [
+        "https://www.zara.com/fr/fr/femme-vetements-l1180.html",
+        "https://www.zara.com/fr/fr/homme-vetements-l746.html",
+        "https://www.shein.com/pdsearch/clothing/",
+        "https://www.amazon.fr/s?k=clothing",
+    ],
+    "portable_electronics": [
+        "https://www.amazon.fr/s?k=wireless+earbuds",
+        "https://www.amazon.fr/s?k=power+bank",
+        "https://www.shein.com/pdsearch/portable%20electronics/",
+    ],
+}
+
+
+@dataclass
+class ProductCandidate:
+    category: str
+    product_url: str
+
+
+@dataclass
+class ProductRecord:
+    category: str
+    title: str
+    description: str
+    product_url: str
+    image_url: str
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,263 +103,381 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+
+def polite_sleep() -> None:
+    time.sleep(random.uniform(REQUEST_DELAY_MIN, REQUEST_DELAY_MAX))
 
 
-def polite_sleep():
-    """Sleep a random amount to stay within rate limits."""
-    delay = random.uniform(REQUEST_DELAY_MIN, REQUEST_DELAY_MAX)
-    time.sleep(delay)
+def slugify(text: str) -> str:
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", text.lower()).strip("-")
+    return text[:80] or "product"
 
 
-def fetch_page(session: requests.Session, url: str) -> BeautifulSoup | None:
-    """GET a URL and return a BeautifulSoup object, or None on failure."""
+def fetch(session: requests.Session, url: str) -> BeautifulSoup | None:
     try:
-        response = session.get(url, headers=HEADERS, timeout=TIMEOUT)
-        if response.status_code == 404:
-            log.warning("404 Not Found: %s", url)
-            return None
+        response = session.get(url, timeout=TIMEOUT)
         response.raise_for_status()
         return BeautifulSoup(response.text, "html.parser")
-    except requests.exceptions.Timeout:
-        log.error("Timeout fetching: %s", url)
-    except requests.exceptions.HTTPError as exc:
-        log.error("HTTP error %s: %s", exc.response.status_code, url)
-    except requests.exceptions.RequestException as exc:
-        log.error("Request failed (%s): %s", exc, url)
-    return None
-
-
-def get_image_url(img_tag) -> str | None:
-    """
-    Extract the real image URL from an <img> tag.
-    Jumia lazy-loads images: the real URL is in `data-src`,
-    while `src` holds an SVG placeholder.
-    """
-    if img_tag is None:
+    except requests.RequestException as exc:
+        log.warning("Failed to fetch %s (%s)", url, exc)
         return None
-    # Prefer data-src (lazy-load pattern)
-    url = img_tag.get("data-src") or img_tag.get("data-image")
-    # Fall back to src only if it's not a data: URI placeholder
+
+
+def iter_json_ld(soup: BeautifulSoup) -> Iterable[dict]:
+    for node in soup.select('script[type="application/ld+json"]'):
+        raw = node.string or node.get_text(strip=True)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict):
+                    yield item
+        elif isinstance(data, dict):
+            yield data
+
+
+def product_nodes_from_json_ld(soup: BeautifulSoup) -> list[dict]:
+    nodes: list[dict] = []
+    for data in iter_json_ld(soup):
+        data_type = data.get("@type")
+        if data_type == "Product":
+            nodes.append(data)
+        graph = data.get("@graph")
+        if isinstance(graph, list):
+            for item in graph:
+                if isinstance(item, dict) and item.get("@type") == "Product":
+                    nodes.append(item)
+    return nodes
+
+
+def normalize_image_url(url: str) -> str:
     if not url:
-        src = img_tag.get("src", "")
-        if src and not src.startswith("data:"):
-            url = src
-    return url or None
+        return url
+    url = url.strip()
+    if url.startswith("//"):
+        return "https:" + url
+
+    amazon_match = re.search(r"https://m\.media-amazon\.com/images/I/[^.]+\._[^.]+_\.(jpg|jpeg|png|webp)", url, re.IGNORECASE)
+    if amazon_match:
+        return re.sub(r"\._[^.]+_\.", ".", amazon_match.group(0))
+
+    url = re.sub(r"([?&])(wid|hei|width|height|fit|crop)=[^&]+", "", url, flags=re.IGNORECASE)
+    url = url.replace("&amp;", "&")
+    return url
 
 
-def download_image(
-    session: requests.Session,
-    image_url: str,
-    dest_path: Path,
-) -> tuple[int, int] | None:
-    """
-    Download an image to dest_path.
-    Returns (width, height) on success, None on failure.
-    """
-    try:
-        resp = session.get(image_url, headers=HEADERS, timeout=TIMEOUT, stream=True)
-        resp.raise_for_status()
-        content = resp.content
-        img = Image.open(io.BytesIO(content))
-        width, height = img.size
-        # Save original file (keep original format)
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(dest_path, "wb") as f:
-            f.write(content)
-        return width, height
-    except requests.exceptions.Timeout:
-        log.warning("Timeout downloading image: %s", image_url)
-    except requests.exceptions.HTTPError as exc:
-        log.warning("HTTP %s downloading image: %s", exc.response.status_code, image_url)
-    except requests.exceptions.RequestException as exc:
-        log.warning("Failed to download image (%s): %s", exc, image_url)
-    except Exception as exc:
-        log.warning("Could not process image (%s): %s", exc, image_url)
+def best_image_from_amazon(soup: BeautifulSoup) -> str | None:
+    node = soup.select_one("#landingImage")
+    dynamic = node.get("data-a-dynamic-image") if node else None
+    if dynamic:
+        try:
+            payload = json.loads(dynamic)
+            if payload:
+                return max(
+                    payload.keys(),
+                    key=lambda key: payload[key][0] * payload[key][1],
+                )
+        except json.JSONDecodeError:
+            pass
+
+    html = str(soup)
+    match = re.search(r'"hiRes":"(https:[^"]+)"', html)
+    if match:
+        return match.group(1).replace("\\u0026", "&").replace("\\", "")
     return None
 
 
-def parse_products(soup: BeautifulSoup) -> list[dict]:
-    """
-    Extract product data from a parsed category listing page.
-    Returns a list of dicts with keys: name, product_url, image_url.
-    """
-    products = []
-    cards = soup.select("div.c-prd, article.c-prd")
-    for card in cards:
-        # Product link & URL
-        link_tag = card.find("a", href=True)
-        if not link_tag:
+def best_image_from_json_ld(soup: BeautifulSoup) -> str | None:
+    for product in product_nodes_from_json_ld(soup):
+        image_value = product.get("image")
+        if isinstance(image_value, str):
+            return image_value
+        if isinstance(image_value, list) and image_value:
+            return image_value[0]
+    return None
+
+
+def best_image_from_meta(soup: BeautifulSoup) -> str | None:
+    for selector in (
+        'meta[property="og:image"]',
+        'meta[name="twitter:image"]',
+        'meta[property="twitter:image"]',
+    ):
+        node = soup.select_one(selector)
+        if node and node.get("content"):
+            return node["content"]
+    return None
+
+
+def extract_title(soup: BeautifulSoup) -> str:
+    for product in product_nodes_from_json_ld(soup):
+        title = product.get("name")
+        if isinstance(title, str) and title.strip():
+            return title.strip()
+
+    for selector in (
+        "#productTitle",
+        "h1",
+        'meta[property="og:title"]',
+        "title",
+    ):
+        node = soup.select_one(selector)
+        if node is None:
             continue
-        product_url = urljoin(BASE_URL, link_tag["href"])
+        value = node.get("content") if node.name == "meta" else node.get_text(" ", strip=True)
+        if value:
+            return value.strip()
+    return ""
 
-        # Product name — prefer h2.c-prd-title, fall back to img alt
-        name_tag = card.select_one("h2.c-prd-title, h3.c-prd-title, .c-prd-title")
-        if name_tag:
-            name = name_tag.get_text(strip=True)
-        else:
-            img_tag = card.find("img")
-            name = img_tag.get("alt", "").strip() if img_tag else ""
 
-        if not name:
+def extract_description(soup: BeautifulSoup) -> str:
+    for product in product_nodes_from_json_ld(soup):
+        description = product.get("description")
+        if isinstance(description, str) and description.strip():
+            return re.sub(r"\s+", " ", description).strip()
+
+    for selector in (
+        'meta[property="og:description"]',
+        'meta[name="description"]',
+        "#feature-bullets",
+        ".product-detail-description",
+    ):
+        node = soup.select_one(selector)
+        if node is None:
             continue
+        value = node.get("content") if node.name == "meta" else node.get_text(" ", strip=True)
+        if value:
+            return re.sub(r"\s+", " ", value).strip()
+    return ""
 
-        # Image URL
-        img_tag = card.find("img")
-        image_url = get_image_url(img_tag)
-        if not image_url:
+
+def extract_product_record(category: str, product_url: str, soup: BeautifulSoup) -> ProductRecord | None:
+    parsed = urlparse(product_url).netloc.lower()
+
+    if "amazon." in parsed:
+        image_url = best_image_from_amazon(soup)
+    else:
+        image_url = None
+
+    image_url = image_url or best_image_from_json_ld(soup) or best_image_from_meta(soup)
+    if not image_url:
+        log.warning("No usable image found for %s", product_url)
+        return None
+
+    title = extract_title(soup)
+    if not title:
+        log.warning("No title found for %s", product_url)
+        return None
+
+    description = extract_description(soup)
+
+    return ProductRecord(
+        category=category,
+        title=title,
+        description=description,
+        product_url=product_url,
+        image_url=normalize_image_url(image_url),
+    )
+
+
+def is_likely_product_url(url: str, host: str) -> bool:
+    if host in url and "/dp/" in url:
+        return True
+    if "zara.com" in host and "/product/" in url:
+        return True
+    if "shein.com" in host and ("-p-" in url or "/product/" in url):
+        return True
+    return False
+
+
+def collect_listing_links(soup: BeautifulSoup, source_url: str) -> list[str]:
+    host = urlparse(source_url).netloc.lower()
+    links: list[str] = []
+    seen: set[str] = set()
+
+    for anchor in soup.select("a[href]"):
+        href = urljoin(source_url, anchor["href"])
+        href = href.split("#")[0]
+        if not href.startswith("http"):
             continue
+        if not is_likely_product_url(href, host):
+            continue
+        if href in seen:
+            continue
+        seen.add(href)
+        links.append(href)
+    return links
 
-        # Make sure image URL is absolute
-        if image_url.startswith("//"):
-            image_url = "https:" + image_url
-        elif image_url.startswith("/"):
-            image_url = urljoin(BASE_URL, image_url)
 
-        products.append(
-            {"name": name, "product_url": product_url, "image_url": image_url}
-        )
-    return products
+def download_image(session: requests.Session, image_url: str, destination: Path) -> tuple[int, int] | None:
+    try:
+        response = session.get(image_url, timeout=TIMEOUT)
+        response.raise_for_status()
+        content = response.content
+        image = Image.open(io.BytesIO(content)).convert("RGB")
+        width, height = image.size
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        image.save(destination, format="JPEG", quality=95)
+        return width, height
+    except requests.RequestException as exc:
+        log.warning("Failed to download image %s (%s)", image_url, exc)
+    except OSError as exc:
+        log.warning("Invalid image payload %s (%s)", image_url, exc)
+    return None
+
+
+def load_existing_urls() -> set[str]:
+    if not METADATA_CSV.exists():
+        return set()
+
+    with open(METADATA_CSV, newline="", encoding="utf-8") as handle:
+        return {
+            row["product_url"]
+            for row in csv.DictReader(handle)
+            if row.get("product_url")
+        }
+
+
+def next_id(existing_count: int) -> str:
+    return f"img_{existing_count + 1:04d}"
 
 
 def scrape_category(
     session: requests.Session,
     category: str,
-    path: str,
     target_count: int,
-    csv_writer,
+    writer: csv.DictWriter,
     existing_urls: set[str],
+    existing_rows: int,
 ) -> int:
-    """
-    Scrape images for one category.
-    Returns the number of images successfully saved.
-    """
+    if category not in ALLOWED_CATEGORIES:
+        raise ValueError(f"Unsupported category: {category}")
+
+    saved = 0
     category_dir = RAW_IMAGES_DIR / category
     category_dir.mkdir(parents=True, exist_ok=True)
 
-    saved = 0
-    page = 1
-
-    while saved < target_count and page <= MAX_PAGES_PER_CATEGORY:
-        url = f"{BASE_URL}{path}?page={page}"
-        log.info("[%s] Fetching page %d → %s", category, page, url)
-
-        soup = fetch_page(session, url)
+    candidate_urls: list[str] = []
+    for seed_url in SITE_SEEDS.get(category, []):
+        log.info("[%s] Seed page %s", category, seed_url)
+        soup = fetch(session, seed_url)
         polite_sleep()
-
         if soup is None:
-            log.warning("[%s] Skipping page %d (fetch failed)", category, page)
-            page += 1
+            continue
+        candidate_urls.extend(collect_listing_links(soup, seed_url))
+
+    deduped_candidates = list(dict.fromkeys(candidate_urls))
+    log.info("[%s] %d candidate product pages", category, len(deduped_candidates))
+
+    for product_url in deduped_candidates:
+        if saved >= target_count:
+            break
+        if product_url in existing_urls:
             continue
 
-        products = parse_products(soup)
-        if not products:
-            log.info("[%s] No products on page %d — stopping", category, page)
-            break
+        soup = fetch(session, product_url)
+        polite_sleep()
+        if soup is None:
+            continue
 
-        log.info("[%s] Found %d products on page %d", category, len(products), page)
+        record = extract_product_record(category, product_url, soup)
+        if record is None:
+            continue
 
-        for product in products:
-            if saved >= target_count:
-                break
+        sample_id = next_id(existing_rows + saved)
+        filename = f"{sample_id}_{slugify(record.title)}.jpg"
+        image_path = category_dir / filename
 
-            image_url = product["image_url"]
-            if image_url in existing_urls:
-                log.debug("Skipping duplicate: %s", image_url)
-                continue
+        image_size = download_image(session, record.image_url, image_path)
+        polite_sleep()
+        if image_size is None:
+            continue
 
-            # Build a safe filename from the image URL
-            raw_filename = image_url.split("?")[0].split("/")[-1]
-            # Ensure it has an image extension
-            if not any(raw_filename.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")):
-                raw_filename += ".jpg"
-            dest_path = category_dir / f"{saved + 1:03d}_{raw_filename}"
-
-            log.info("[%s] Downloading image %d/%d: %s", category, saved + 1, target_count, raw_filename)
-            result = download_image(session, image_url, dest_path)
-            polite_sleep()
-
-            if result is None:
-                continue
-
-            width, height = result
-            existing_urls.add(image_url)
-            saved += 1
-
-            csv_writer.writerow(
-                {
-                    "product_name": product["name"],
-                    "product_url": product["product_url"],
-                    "image_url": image_url,
-                    "category": category,
-                    "image_width": width,
-                    "image_height": height,
-                    "local_path": str(dest_path.relative_to(PROJECT_ROOT)),
-                }
+        width, height = image_size
+        if width < MIN_ACCEPTABLE_SIDE or height < MIN_ACCEPTABLE_SIDE:
+            log.warning(
+                "[%s] image below %d px: %s (%dx%d)",
+                category,
+                MIN_ACCEPTABLE_SIDE,
+                image_path.name,
+                width,
+                height,
             )
 
-        page += 1
+        writer.writerow(
+            {
+                "id": sample_id,
+                "category": category,
+                "title": record.title,
+                "description": record.description,
+                "product_url": record.product_url,
+                "image_path": str(image_path.relative_to(PROJECT_ROOT)),
+                "width": width,
+                "height": height,
+            }
+        )
+        existing_urls.add(product_url)
+        saved += 1
+        log.info("[%s] saved %s (%d/%d)", category, sample_id, saved, target_count)
 
-    log.info("[%s] Done — saved %d images", category, saved)
     return saved
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
-def main():
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+def main() -> None:
     RAW_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    existing_urls = load_existing_urls()
+    append_mode = METADATA_CSV.exists()
+    existing_rows = len(existing_urls)
 
     fieldnames = [
-        "product_name",
-        "product_url",
-        "image_url",
+        "id",
         "category",
-        "image_width",
-        "image_height",
-        "local_path",
+        "title",
+        "description",
+        "product_url",
+        "image_path",
+        "width",
+        "height",
     ]
 
-    # Track already-downloaded image URLs to avoid duplicates across runs
-    existing_urls: set[str] = set()
-    append_mode = METADATA_CSV.exists()
-    if append_mode:
-        with open(METADATA_CSV, newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                existing_urls.add(row.get("image_url", ""))
+    total_saved = 0
+    with requests.Session() as session:
+        session.headers.update(HEADERS)
+        with open(
+            METADATA_CSV,
+            "a" if append_mode else "w",
+            newline="",
+            encoding="utf-8",
+        ) as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            if not append_mode:
+                writer.writeheader()
 
-    csv_file = open(METADATA_CSV, "a" if append_mode else "w", newline="", encoding="utf-8")
-    writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-    if not append_mode:
-        writer.writeheader()
+            for category in ALLOWED_CATEGORIES:
+                saved = scrape_category(
+                    session=session,
+                    category=category,
+                    target_count=TARGET_PER_CATEGORY,
+                    writer=writer,
+                    existing_urls=existing_urls,
+                    existing_rows=existing_rows + total_saved,
+                )
+                total_saved += saved
+                handle.flush()
+                log.info("Progress: %d saved so far", total_saved)
+                if total_saved >= TARGET_TOTAL_MAX:
+                    break
 
-    session = requests.Session()
-    session.headers.update(HEADERS)
-
-    total = 0
-    try:
-        for category, path in CATEGORIES.items():
-            count = scrape_category(
-                session,
-                category,
-                path,
-                IMAGES_PER_CATEGORY,
-                writer,
-                existing_urls,
-            )
-            csv_file.flush()
-            total += count
-            log.info("Progress: %d total images saved so far", total)
-    finally:
-        csv_file.close()
-        session.close()
-
-    log.info("Scraping complete. %d images saved. Metadata: %s", total, METADATA_CSV)
+    log.info(
+        "Finished scraping. Saved %d records. Target range: %d-%d.",
+        total_saved,
+        TARGET_TOTAL_MIN,
+        TARGET_TOTAL_MAX,
+    )
 
 
 if __name__ == "__main__":
