@@ -24,34 +24,47 @@ SELECTOR_WEIGHTS = {
 }
 
 
+ANALYZER_WEIGHTS = {
+    "sharpness": 0.28,
+    "exposure": 0.22,
+    "contrast": 0.20,
+    "color_balance": 0.08,
+    "effective_resolution": 0.22,
+}
+
+
 QUALITY_THRESHOLDS = {
     "sharpness": {
-        "poor_max": 80.0,
-        "acceptable_min": 80.0,
-        "good_min": 160.0,
+        "very_blurry_max": 45.0,
+        "soft_max": 110.0,
+        "good_min": 220.0,
+        "excellent_min": 420.0,
     },
     "exposure": {
-        "underexposed_max": 70.0,
-        "overexposed_min": 185.0,
-        "target_min": 95.0,
-        "target_max": 170.0,
+        "target_mean": 145.0,
+        "tolerance_good": 24.0,
+        "tolerance_ok": 46.0,
+        "extreme_dark": 58.0,
+        "extreme_bright": 220.0,
     },
     "contrast": {
-        "poor_max": 25.0,
-        "good_min": 45.0,
+        "flat_max": 22.0,
+        "acceptable_min": 30.0,
+        "good_min": 44.0,
+        "strong_min": 58.0,
     },
-    "color_consistency": {
-        "max_cast_delta": 18.0,
+    "color_balance": {
+        "good_max_delta": 10.0,
+        "acceptable_max_delta": 22.0,
+        "strong_cast_delta": 38.0,
     },
-    "resolution": {
+    "effective_resolution": {
         "min_width": 512,
         "min_height": 512,
         "recommended_width": 1000,
         "recommended_height": 1000,
-    },
-    "clip_coherence": {
-        "poor_max": 0.18,
-        "good_min": 0.28,
+        "detail_soft_min": 0.035,
+        "detail_good_min": 0.085,
     },
 }
 
