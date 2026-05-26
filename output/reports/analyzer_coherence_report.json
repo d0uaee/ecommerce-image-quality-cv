@@ -1,0 +1,86 @@
+[
+  {
+    "image": "data\\raw_images\\clothing\\001_1.jpg",
+    "selected_bbox": [
+      11,
+      97,
+      267,
+      205
+    ],
+    "refined_bbox": [
+      14,
+      100,
+      263,
+      202
+    ],
+    "global_score": 67.37,
+    "coherence": {
+      "name": "coherence",
+      "score": 9.75,
+      "raw_value": {
+        "clip_similarity": 0.0,
+        "clip_score": 0.0,
+        "expected_color": "noir",
+        "dominant_color": "argent\u00e9",
+        "color_score": 65.0
+      },
+      "message_fr": "Coherence faible : le crop ou le texte semblent mal alignes."
+    }
+  },
+  {
+    "image": "data\\raw_images\\clothing\\002_1.jpg",
+    "selected_bbox": [
+      10,
+      95,
+      267,
+      206
+    ],
+    "refined_bbox": [
+      14,
+      98,
+      264,
+      203
+    ],
+    "global_score": 71.45,
+    "coherence": {
+      "name": "coherence",
+      "score": 9.75,
+      "raw_value": {
+        "clip_similarity": 0.0,
+        "clip_score": 0.0,
+        "expected_color": "noir",
+        "dominant_color": "gris",
+        "color_score": 65.0
+      },
+      "message_fr": "Coherence faible : le crop ou le texte semblent mal alignes."
+    }
+  },
+  {
+    "image": "data\\raw_images\\clothing\\003_1.jpg",
+    "selected_bbox": [
+      13,
+      95,
+      266,
+      206
+    ],
+    "refined_bbox": [
+      16,
+      98,
+      263,
+      203
+    ],
+    "global_score": 50.16,
+    "coherence": {
+      "name": "coherence",
+      "score": 9.75,
+      "raw_value": {
+        "clip_similarity": 0.0,
+        "clip_score": 0.0,
+        "expected_color": "noir",
+        "dominant_color": "transparent",
+        "color_score": 65.0
+      },
+      "message_fr": "Coherence faible : le crop ou le texte semblent mal alignes."
+    }
+  }
+]
