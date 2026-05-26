@@ -24,6 +24,18 @@ SELECTOR_WEIGHTS = {
 }
 
 
+REGION_PROPOSAL_CONFIG = {
+    "max_regions": 5,
+    "min_region_area_ratio": 0.02,
+    "max_region_area_ratio": 0.92,
+    "saliency_threshold": 0.45,
+    "use_dino": False,
+    "dino_model_id": "IDEA-Research/grounding-dino-tiny",
+    "dino_box_threshold": 0.25,
+    "dino_text_threshold": 0.20,
+}
+
+
 ANALYZER_WEIGHTS = {
     "sharpness": 0.28,
     "exposure": 0.22,
