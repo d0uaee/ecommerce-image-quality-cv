@@ -1,0 +1,83 @@
+{
+  "input_image": "C:\\Users\\ahadj\\OneDrive\\ecommerce-image-quality\\output\\reports\\selector_multi_product_input.jpg",
+  "candidate_count": 3,
+  "selected_bbox": [
+    325,
+    15,
+    596,
+    286
+  ],
+  "refined_bbox": [
+    362,
+    106,
+    559,
+    195
+  ],
+  "selected_score": 0.4555,
+  "clip_backend": "proxy",
+  "candidates": [
+    {
+      "candidate_rank": 1,
+      "bbox": [
+        325,
+        15,
+        596,
+        286
+      ],
+      "area": 0.2495,
+      "centrality": 0.9406,
+      "score_clip": 0.5363,
+      "score_visual": 0.2347,
+      "score_category": 0.5,
+      "score_total": 0.4555,
+      "clip_backend": "proxy",
+      "proxy_details": {
+        "detail_signal": 0.4958,
+        "proxy_color_signal": 0.5,
+        "proxy_size_signal": 0.2495
+      }
+    },
+    {
+      "candidate_rank": 2,
+      "bbox": [
+        15,
+        30,
+        286,
+        301
+      ],
+      "area": 0.2495,
+      "centrality": 0.3263,
+      "score_clip": 0.4401,
+      "score_visual": 0.0814,
+      "score_category": 0.5,
+      "score_total": 0.3594,
+      "clip_backend": "proxy",
+      "proxy_details": {
+        "detail_signal": 0.5623,
+        "proxy_color_signal": 0.5,
+        "proxy_size_signal": 0.2495
+      }
+    },
+    {
+      "candidate_rank": 3,
+      "bbox": [
+        635,
+        37,
+        906,
+        308
+      ],
+      "area": 0.2495,
+      "centrality": 0.3205,
+      "score_clip": 0.4201,
+      "score_visual": 0.08,
+      "score_category": 0.5,
+      "score_total": 0.347,
+      "clip_backend": "proxy",
+      "proxy_details": {
+        "detail_signal": 0.5152,
+        "proxy_color_signal": 0.5,
+        "proxy_size_signal": 0.2495
+      }
+    }
+  ]
+}
