@@ -23,6 +23,14 @@ SELECTOR_WEIGHTS = {
     "category_coherence": 0.15,
 }
 
+# Poids du score proxy CLIP (utilisé quand le modèle CLIP n'est pas disponible).
+# Centraliser ici pour faciliter la calibration sans toucher au code du selector.
+PROXY_WEIGHTS = {
+    "color": 0.20,
+    "detail": 0.40,
+    "center": 0.40,
+}
+
 
 REGION_PROPOSAL_CONFIG = {
     "max_regions": 5,

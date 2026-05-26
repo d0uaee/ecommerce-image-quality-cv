@@ -9,16 +9,13 @@ import numpy as np
 from PIL import Image
 
 import src.text_processor as tp
-from config import SELECTOR_WEIGHTS
+from config import PROXY_WEIGHTS, SELECTOR_WEIGHTS
 from src.candidate_region_generator import refine_crop
 from src.dictionaries import CATEGORY_KEYWORDS, EMBEDDING_VECTOR_SIZE, FRENCH_COLOR_TO_RGB
 
 
 MAX_CROPS = 5
 CLIP_INPUT_SIZE = (224, 224)
-PROXY_COLOR_WEIGHT = 0.20
-PROXY_DETAIL_WEIGHT = 0.40
-PROXY_CENTER_WEIGHT = 0.40
 
 
 def _load_image(image: str | Path | np.ndarray) -> np.ndarray:
@@ -95,9 +92,9 @@ def _proxy_clip_score(crop_bgr: np.ndarray, text_data: dict[str, Any], area: flo
 
     size_signal = max(0.0, min(1.0, area))
     clip_proxy = (
-        PROXY_DETAIL_WEIGHT * detail_signal
-        + PROXY_CENTER_WEIGHT * (0.5 * centrality + 0.5 * size_signal)
-        + PROXY_COLOR_WEIGHT * color_signal
+        PROXY_WEIGHTS["detail"] * detail_signal
+        + PROXY_WEIGHTS["center"] * (0.5 * centrality + 0.5 * size_signal)
+        + PROXY_WEIGHTS["color"] * color_signal
     )
     return clip_proxy, {
         "detail_signal": round(detail_signal, 4),
