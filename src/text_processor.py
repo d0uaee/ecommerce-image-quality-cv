@@ -27,6 +27,7 @@ _SPACY_NLP = None
 _SPACY_LOAD_ATTEMPTED = False
 _EMBEDDING_MODEL = None
 _EMBEDDING_LOAD_ATTEMPTED = False
+_embed_backend = "none"
 
 
 def _normalize(text: str) -> str:
@@ -55,7 +56,7 @@ def _load_spacy_model():
 
 
 def _load_embedding_model():
-    global _EMBEDDING_MODEL, _EMBEDDING_LOAD_ATTEMPTED
+    global _EMBEDDING_MODEL, _EMBEDDING_LOAD_ATTEMPTED, _embed_backend
     if _EMBEDDING_MODEL is not None:
         return _EMBEDDING_MODEL
     if _EMBEDDING_LOAD_ATTEMPTED:
@@ -68,8 +69,10 @@ def _load_embedding_model():
         _EMBEDDING_MODEL = SentenceTransformer(
             "sentence-transformers/clip-ViT-B-32-multilingual-v1"
         )
+        _embed_backend = "clip"
     except Exception:
         _EMBEDDING_MODEL = None
+        _embed_backend = "none"
     return _EMBEDDING_MODEL
 
 
