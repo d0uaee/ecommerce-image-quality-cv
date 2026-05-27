@@ -190,6 +190,16 @@ def build_spearman_plot(template_frame: pd.DataFrame) -> str:
 
 
 def build_sensitivity_section() -> dict[str, Any]:
+    if SENSITIVITY_TARGET_CSV.exists() and SENSITIVITY_MATRIX_CSV.exists():
+        target_summary = pd.read_csv(SENSITIVITY_TARGET_CSV)
+        full_matrix = pd.read_csv(SENSITIVITY_MATRIX_CSV)
+        return {
+            "status": "ok",
+            "message": "Sensibilite par critere rechargee depuis les CSV existants.",
+            "target_summary": target_summary,
+            "full_matrix": full_matrix,
+        }
+
     try:
         measurements = build_measurements()
     except Exception as exc:
