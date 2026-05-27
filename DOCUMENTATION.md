@@ -163,7 +163,7 @@ La couleur reste un signal leger dans la coherence.
 Le module retourne :
 
 - les sous-scores 0-100
-- un score global pondéré
+- un score global pondere
 - des messages explicatifs
 - des recommandations FR / Darija
 
@@ -218,11 +218,12 @@ Le protocole cible est :
 - versions degradees generees automatiquement
 - verite-terrain connue pour chaque degradation
 
-Note importante :
+Etat reel du depot :
 
-Le depot contient encore des donnees historiques qui ne sont pas encore totalement alignees
-avec la spec finale du PFE. Le code de l'application inclut temporairement une compatibilite
-avec cet ancien schema pour continuer les tests.
+- `metadata.csv` suit deja le bon schema cible
+- une partie du contenu reste historique et basse resolution
+- le dataset versionne sert encore surtout au smoke test et au developpement
+- le dataset final du PFE devra etre regenere avec des images HD propres au protocole cible
 
 ## 8. Evaluation
 
@@ -245,7 +246,7 @@ Deux scripts principaux existent pour la validation :
 
 - architecture zero-shot defendable en soutenance
 - explication visible du choix de crop
-- sous-scores interpretabless
+- sous-scores interpretables
 - cout de developpement raisonnable pour 2 mois
 - forte reutilisabilite de briques standard
 
@@ -263,7 +264,7 @@ La valeur du systeme reside dans la combinaison explicable entre :
 
 - texte de l'annonce
 - selection zero-shot du bon produit
-- mesures visuelles interpretabless
+- mesures visuelles interpretables
 - recommandations actionnables
 
 Le projet constitue donc un systeme zero-shot multimodal explicable pour l'evaluation
