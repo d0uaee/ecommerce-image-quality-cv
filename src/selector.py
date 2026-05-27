@@ -49,21 +49,49 @@ def _resize_for_clip(crop_bgr: np.ndarray) -> Image.Image:
 
 
 def _category_coherence(text_category: str | None, crop_bgr: np.ndarray) -> float:
+    """
+    Estime si le crop est visuellement cohérent avec la catégorie textuelle.
+
+    Heuristiques visuelles légères (rapport d'aspect + densité de contours) :
+    - portable_electronics : objets plutôt carrés/portrait, contours nets
+    - shoes               : objets nettement plus larges que hauts
+    - clothing            : plage de ratios large — on vérifie seulement l'absence
+                            de ratios extrêmes et une densité minimale de contours.
+
+    Choix de conception :
+    L'ancienne version testait `any(kw in CATEGORY_KEYWORDS["clothing"] for kw in …)`,
+    ce qui est toujours True puisque la liste contient par définition ces mots-clés.
+    Le bug masquait l'absence de signal visuel réel. On préfère un score honnête :
+    0.5 (neutre) si l'heuristique visuelle ne peut pas trancher, plutôt qu'un faux 1.0.
+    """
     if not text_category:
         return 0.5
 
-    mean_edge = float(np.mean(np.abs(cv2.Laplacian(cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY), cv2.CV_32F))))
+    gray = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY)
+    mean_edge = float(np.mean(np.abs(cv2.Laplacian(gray, cv2.CV_32F))))
     aspect_ratio = crop_bgr.shape[1] / max(crop_bgr.shape[0], 1)
-    keywords = CATEGORY_KEYWORDS.get(text_category, [])
 
     if text_category == "portable_electronics":
+        # Téléphones/tablettes/casques : ratio approximativement carré ou portrait,
+        # contours nets (écrans, coques) → seuil d'arête plus élevé.
         return 1.0 if (0.65 <= aspect_ratio <= 1.85 and mean_edge > 8.0) else 0.5
+
     if text_category == "shoes":
+        # Chaussures photographiées de côté ou en 3/4 : nettement plus larges que hautes.
         return 1.0 if (1.1 <= aspect_ratio <= 3.2 and mean_edge > 6.0) else 0.5
+
     if text_category == "clothing":
-        clothing_hint = any(keyword in keywords for keyword in ("robe", "chemise", "veste", "hoodie"))
-        if (0.45 <= aspect_ratio <= 1.45 and mean_edge > 4.0) or clothing_hint:
+        # Les vêtements couvrent une large plage de ratios (t-shirt portrait vs veste
+        # 3/4 paysage). Sans détecteur de forme dédié, on ne peut pas distinguer un
+        # vêtement d'un fond non-vêtement sur le seul ratio. On accepte tout crop dont
+        # le ratio reste dans des bornes non-absurdes et qui présente des contours
+        # minimaux (évite les crops de fond uni).
+        if 0.35 <= aspect_ratio <= 2.0 and mean_edge > 4.0:
             return 1.0
+        # Ratio extrême ou crop quasi-uniforme → signal insuffisant, score neutre.
+        return 0.5
+
+    # Catégorie inconnue : score neutre.
     return 0.5
 
 
