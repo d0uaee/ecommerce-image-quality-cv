@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from config import DATA_DIR, OUTPUT_DIR, STREAMLIT_DEFAULTS
+from config import DATA_DIR, STREAMLIT_DEFAULTS
 from src.analyzer import analyze
 from src.candidate_region_generator import detect_with_dino, propose_regions
 from src.selector import select_product
@@ -63,21 +62,9 @@ def _load_dataset_announcements() -> pd.DataFrame:
 
     frame = pd.read_csv(METADATA_CSV)
     required = {"title", "description", "image_path"}
-    if required.issubset(frame.columns):
-        return frame.fillna("")
-
-    legacy_required = {"product_name", "category", "local_path"}
-    if legacy_required.issubset(frame.columns):
-        normalized = pd.DataFrame(
-            {
-                "title": frame["product_name"].fillna(""),
-                "description": frame["category"].fillna(""),
-                "image_path": frame["local_path"].fillna(""),
-            }
-        )
-        return normalized
-
-    return pd.DataFrame(columns=["title", "description", "image_path"])
+    if not required.issubset(frame.columns):
+        return pd.DataFrame(columns=["title", "description", "image_path"])
+    return frame.fillna("")
 
 
 def _annotate_selected_region(image_rgb: np.ndarray, bbox: tuple[int, int, int, int]) -> np.ndarray:
