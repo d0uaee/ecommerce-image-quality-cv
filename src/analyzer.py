@@ -8,6 +8,7 @@ import numpy as np
 
 import src.text_processor as tp
 from config import ANALYZER_WEIGHTS, QUALITY_THRESHOLDS
+from src.candidate_region_generator import propose_regions
 from src.dictionaries import EMBEDDING_VECTOR_SIZE, FRENCH_COLOR_TO_RGB
 
 
@@ -127,6 +128,10 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
     thresholds = QUALITY_THRESHOLDS["exposure"]
     mean_brightness = float(gray.mean())
     std_brightness = float(gray.std())
+    p10 = float(np.percentile(gray, 10))
+    p90 = float(np.percentile(gray, 90))
+    shadow_ratio = float(np.mean(gray <= 35))
+    highlight_ratio = float(np.mean(gray >= 245))
     target = thresholds["target_mean"]
     deviation = abs(mean_brightness - target)
 
@@ -140,6 +145,13 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
         ) * 38.0
     else:
         score = max(18.0, 50.0 - (deviation - thresholds["tolerance_ok"]) * 1.1)
+
+    if mean_brightness < target:
+        darkness_penalty = max(0.0, (80.0 - p10) * 0.32) + shadow_ratio * 42.0
+        score -= darkness_penalty
+    else:
+        highlight_penalty = max(0.0, (p90 - 235.0) * 0.40) + highlight_ratio * 38.0
+        score -= highlight_penalty
 
     if mean_brightness < thresholds["extreme_dark"]:
         message = "Sous-exposition forte : l'image est trop sombre."
@@ -156,6 +168,10 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
         {
             "mean_brightness": round(mean_brightness, 2),
             "std_brightness": round(std_brightness, 2),
+            "p10": round(p10, 2),
+            "p90": round(p90, 2),
+            "shadow_ratio": round(shadow_ratio, 4),
+            "highlight_ratio": round(highlight_ratio, 4),
         },
         message,
     )
@@ -217,15 +233,35 @@ def _effective_resolution_score(gray: np.ndarray) -> dict[str, Any]:
     height, width = gray.shape[:2]
     lap = cv2.Laplacian(gray, cv2.CV_32F)
     detail_ratio = float(np.mean(np.abs(lap)) / 255.0)
+    edge_density = float(np.mean(cv2.Canny(gray, 80, 160) > 0))
+    image_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    candidate_regions = propose_regions(image_bgr)
+    if candidate_regions:
+        main_region = candidate_regions[0]
+        useful_area = float(main_region.get("area", 0.0))
+        useful_centrality = float(main_region.get("centrality", 0.0))
+    else:
+        useful_area = 0.35
+        useful_centrality = 0.50
 
     width_score = _linear_score(width, thresholds["min_width"], thresholds["recommended_width"])
     height_score = _linear_score(height, thresholds["min_height"], thresholds["recommended_height"])
     detail_score = _linear_score(detail_ratio, thresholds["detail_soft_min"], thresholds["detail_good_min"])
-    score = 0.4 * width_score + 0.4 * height_score + 0.2 * detail_score
+    useful_area_score = _linear_score(useful_area, 0.16, 0.42)
+    useful_centrality_score = _linear_score(useful_centrality, 0.38, 0.82)
+    edge_density_score = _linear_score(edge_density, 0.025, 0.11)
+    score = (
+        0.28 * width_score
+        + 0.28 * height_score
+        + 0.18 * detail_score
+        + 0.16 * useful_area_score
+        + 0.05 * useful_centrality_score
+        + 0.05 * edge_density_score
+    )
 
     if width < thresholds["min_width"] or height < thresholds["min_height"]:
         message = "Resolution faible : l'image manque de pixels utiles."
-    elif detail_ratio < thresholds["detail_soft_min"]:
+    elif detail_ratio < thresholds["detail_soft_min"] or useful_area < 0.16:
         message = "Resolution effective limitee : l'image semble lissee ou reechantillonnee."
     else:
         message = "Resolution correcte : le niveau de detail est exploitable."
@@ -237,6 +273,9 @@ def _effective_resolution_score(gray: np.ndarray) -> dict[str, Any]:
             "width": int(width),
             "height": int(height),
             "detail_ratio": round(detail_ratio, 4),
+            "edge_density": round(edge_density, 4),
+            "useful_area": round(useful_area, 4),
+            "useful_centrality": round(useful_centrality, 4),
         },
         message,
     )
