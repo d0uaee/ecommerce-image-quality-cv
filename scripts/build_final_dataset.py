@@ -398,6 +398,23 @@ def is_portable_electronics_record(record: dict[str, object]) -> bool:
     return any(token in text_blob for token in PORTABLE_ELECTRONICS_INCLUDE)
 
 
+def classify_shopify_record(record: dict[str, object]) -> str | None:
+    category = normalize_text(str(record.get("ground_truth_category", ""))).lower()
+    title = normalize_text(str(record.get("product_title", ""))).lower()
+    description = normalize_text(str(record.get("product_description", ""))).lower()
+    text_blob = " ".join([category, title, description])
+
+    if "apparel & accessories > shoes" in category:
+        return "shoes"
+    if "apparel & accessories > clothing" in category:
+        return "clothing"
+    if is_portable_electronics_record(record):
+        return "portable_electronics"
+    if any(token in text_blob for token in SHOE_KEYWORDS):
+        return "shoes"
+    return None
+
+
 def pil_to_bgr(image: Image.Image) -> np.ndarray:
     rgb = image.convert("RGB")
     return cv2.cvtColor(np.array(rgb), cv2.COLOR_RGB2BGR)
@@ -761,6 +778,75 @@ def copy_shopify_subset(
         )
 
 
+def copy_shopify_all_categories(
+    *,
+    output_dirs: dict[str, Path],
+    counts: dict[str, int],
+    min_width: int,
+    min_height: int,
+    metadata_rows: list[dict[str, str]],
+    counters: dict[str, int],
+    splits: list[str],
+) -> None:
+    for record in iter_shopify_records(splits):
+        if all(counts[category] >= TARGET_COUNTS[category] for category in TARGET_COUNTS):
+            return
+
+        category = classify_shopify_record(record)
+        if category not in TARGET_COUNTS:
+            continue
+        if counts[category] >= TARGET_COUNTS[category]:
+            continue
+
+        image = coerce_shopify_image(record.get("product_image"))
+        if image is None:
+            continue
+
+        decision = quality_gate(image, min_width, min_height)
+        if not decision.accepted:
+            LOGGER.debug(
+                "Rejected Shopify '%s' (%s): %s",
+                normalize_text(str(record.get("product_title", ""))),
+                category,
+                decision.notes,
+            )
+            continue
+
+        counters[category] += 1
+        image_id = f"{category[:3].upper()}_{counters[category]:03d}"
+        filename = f"{image_id}.jpg"
+        destination = output_dirs["originals"] / category / filename
+        save_image(image, destination)
+
+        title = normalize_text(str(record.get("product_title", ""))) or image_id
+        description = normalize_text(str(record.get("product_description", ""))) or title
+        category_hint = normalize_text(str(record.get("ground_truth_category", "")))
+        notes = f"{decision.notes}; source_category={category_hint}"
+        metadata_rows.append(
+            build_metadata_row(
+                image_id=image_id,
+                filename=filename,
+                filepath=destination,
+                category=category,
+                source_dataset=SHOPIFY_DATASET_ID,
+                title=title,
+                description=description,
+                width=decision.width,
+                height=decision.height,
+                notes=notes,
+            )
+        )
+        counts[category] += 1
+        LOGGER.info(
+            "Accepted Shopify %s '%s' -> %s (%s/%s)",
+            category,
+            title[:60],
+            image_id,
+            counts[category],
+            TARGET_COUNTS[category],
+        )
+
+
 def write_metadata(metadata_path: Path, rows: list[dict[str, str]]) -> None:
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     with metadata_path.open("w", encoding="utf-8", newline="") as handle:
@@ -795,7 +881,7 @@ def main() -> None:
             counters=counters,
             manifest_path=args.fashion_manifest,
         )
-    else:
+    elif args.kaggle_root:
         kaggle_root = locate_kaggle_root(args.kaggle_root)
         copy_kaggle_subset(
             output_dirs=output_dirs,
@@ -806,15 +892,27 @@ def main() -> None:
             counters=counters,
             kaggle_root=kaggle_root,
         )
-    copy_shopify_subset(
-        output_dirs=output_dirs,
-        counts=counts,
-        min_width=args.min_width,
-        min_height=args.min_height,
-        metadata_rows=metadata_rows,
-        counters=counters,
-        splits=args.shopify_splits,
-    )
+    else:
+        LOGGER.info("No fashion manifest or local Kaggle root provided. Using Shopify streaming for all categories.")
+        copy_shopify_all_categories(
+            output_dirs=output_dirs,
+            counts=counts,
+            min_width=args.min_width,
+            min_height=args.min_height,
+            metadata_rows=metadata_rows,
+            counters=counters,
+            splits=args.shopify_splits,
+        )
+    if counts["portable_electronics"] < TARGET_COUNTS["portable_electronics"]:
+        copy_shopify_subset(
+            output_dirs=output_dirs,
+            counts=counts,
+            min_width=args.min_width,
+            min_height=args.min_height,
+            metadata_rows=metadata_rows,
+            counters=counters,
+            splits=args.shopify_splits,
+        )
 
     validate_final_counts(counts)
     metadata_rows.sort(key=lambda row: (row["category"], row["image_id"]))
