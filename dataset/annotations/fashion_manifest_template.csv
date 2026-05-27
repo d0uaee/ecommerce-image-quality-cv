@@ -1,0 +1,3 @@
+category,title,description,source_dataset,source_url,local_path,notes
+shoes,Running shoes black men,Black running shoes on white background,manual_curated,,,keep only HD product-centered images
+clothing,Blue cotton shirt,Blue cotton shirt product image on clean background,manual_curated,,,keep only HD product-centered images
