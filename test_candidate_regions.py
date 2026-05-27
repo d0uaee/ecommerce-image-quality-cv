@@ -3,11 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from config import OUTPUT_DIR, REGION_PROPOSAL_CONFIG
+from config import OUTPUT_DIR, RAW_IMAGES_DIR, REGION_PROPOSAL_CONFIG
 from src.candidate_region_generator import detect_with_dino, propose_regions
 
-
-RAW_IMAGES_DIR = Path("data/raw_images")
 OUTPUT_PATH = OUTPUT_DIR / "reports" / "candidate_region_comparison.json"
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 DEFAULT_DINO_PROMPT = "product. clothing item. shoe. electronic device."
