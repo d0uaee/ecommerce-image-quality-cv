@@ -153,10 +153,14 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
         highlight_penalty = max(0.0, (p90 - 235.0) * 0.40) + highlight_ratio * 38.0
         score -= highlight_penalty
 
+    final_score = _clamp(score)
+
     if mean_brightness < thresholds["extreme_dark"]:
         message = "Sous-exposition forte : l'image est trop sombre."
     elif mean_brightness > thresholds["extreme_bright"]:
         message = "Surexposition forte : les hautes lumieres sont brulees."
+    elif final_score < 45.0:
+        message = "Exposition a corriger : l'image parait trop sombre ou desequilibree."
     elif deviation > thresholds["tolerance_ok"]:
         message = "Exposition moyenne : la lumiere n'est pas encore bien equilibree."
     else:
