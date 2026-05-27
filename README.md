@@ -65,8 +65,8 @@ ecommerce-image-quality/
 |- requirements.txt
 |- README.md
 |- DOCUMENTATION.md
-|- data/
-|  |- raw_images/
+|- dataset/
+|  |- originals/
 |  |- clean_references/
 |  |- degraded/
 |  `- metadata.csv
@@ -135,13 +135,13 @@ Scripts utiles :
 
 ## Etat actuel
 
-Le coeur du pipeline zero-shot est en place, mais le depot contient encore des donnees
-historiques qui ne sont pas completement alignees avec la spec finale du PFE.
+Le coeur du pipeline zero-shot est en place et le projet travaille maintenant par defaut
+sur `dataset/` comme source principale.
 
 Exemples de points encore en transition :
 
-- `data/metadata.csv` a deja le bon schema, mais son contenu reste encore historique
-- certaines images de `data/raw_images/` sont en basse resolution historique
+- le build final du dataset est encore en cours de remplissage progressif
+- `data/` existe encore comme heritage de l'ancienne base de travail
 - certains supports de soutenance doivent encore etre realignes avec la version finale
 
 ## Idee centrale du PFE
