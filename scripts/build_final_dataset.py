@@ -8,12 +8,14 @@ import subprocess
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Iterable
 
 import cv2
 import numpy as np
 from PIL import Image, ImageFile
+import requests
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -154,6 +156,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help="Optional local path to the extracted Kaggle fashion dataset.",
+    )
+    parser.add_argument(
+        "--fashion-manifest",
+        type=Path,
+        default=None,
+        help="Optional CSV manifest for curated shoes/clothing images. If provided, it replaces Kaggle for fashion categories.",
     )
     parser.add_argument(
         "--min-width",
@@ -569,6 +577,108 @@ def copy_kaggle_subset(
             return
 
 
+def load_manifest_rows(manifest_path: Path) -> Iterable[dict[str, str]]:
+    with manifest_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            yield row
+
+
+def load_manifest_image(row: dict[str, str]) -> Image.Image | None:
+    local_path = normalize_text(row.get("local_path"))
+    source_url = normalize_text(row.get("source_url"))
+
+    if local_path:
+        path = Path(local_path)
+        if not path.is_absolute():
+            path = (PROJECT_ROOT / path).resolve()
+        try:
+            return Image.open(path).convert("RGB")
+        except Exception:
+            return None
+
+    if source_url:
+        try:
+            response = requests.get(source_url, timeout=30)
+            response.raise_for_status()
+            return Image.open(BytesIO(response.content)).convert("RGB")
+        except Exception:
+            return None
+
+    return None
+
+
+def copy_manifest_subset(
+    *,
+    output_dirs: dict[str, Path],
+    counts: dict[str, int],
+    min_width: int,
+    min_height: int,
+    metadata_rows: list[dict[str, str]],
+    counters: dict[str, int],
+    manifest_path: Path,
+) -> None:
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"Fashion manifest not found: {manifest_path}")
+
+    LOGGER.info("Building fashion subset from curated manifest: %s", manifest_path)
+
+    for row in load_manifest_rows(manifest_path):
+        category = normalize_text(row.get("category")).lower()
+        if category not in {"shoes", "clothing"}:
+            continue
+        if counts[category] >= TARGET_COUNTS[category]:
+            continue
+
+        image = load_manifest_image(row)
+        if image is None:
+            LOGGER.debug("Rejected manifest row with unreadable image: %s", row)
+            continue
+
+        decision = quality_gate(image, min_width, min_height)
+        if not decision.accepted:
+            LOGGER.debug("Rejected manifest row (%s): %s", category, decision.notes)
+            continue
+
+        counters[category] += 1
+        image_id = f"{category[:3].upper()}_{counters[category]:03d}"
+        filename = f"{image_id}.jpg"
+        destination = output_dirs["originals"] / category / filename
+        save_image(image, destination)
+
+        title = normalize_text(row.get("title")) or f"{category} item {image_id}"
+        description = normalize_text(row.get("description")) or title
+        source_dataset = normalize_text(row.get("source_dataset")) or "curated_manifest"
+        extra_notes = normalize_text(row.get("notes"))
+        notes = decision.notes if not extra_notes else f"{decision.notes}; {extra_notes}"
+
+        metadata_rows.append(
+            build_metadata_row(
+                image_id=image_id,
+                filename=filename,
+                filepath=destination,
+                category=category,
+                source_dataset=source_dataset,
+                title=title,
+                description=description,
+                width=decision.width,
+                height=decision.height,
+                notes=notes,
+            )
+        )
+        counts[category] += 1
+        LOGGER.info(
+            "Accepted curated %s -> %s (%s/%s)",
+            category,
+            image_id,
+            counts[category],
+            TARGET_COUNTS[category],
+        )
+
+        if counts["shoes"] >= TARGET_COUNTS["shoes"] and counts["clothing"] >= TARGET_COUNTS["clothing"]:
+            return
+
+
 def iter_shopify_records(splits: list[str]) -> Iterable[dict[str, object]]:
     try:
         from datasets import load_dataset
@@ -675,16 +785,27 @@ def main() -> None:
     counters = defaultdict(int)
     metadata_rows: list[dict[str, str]] = []
 
-    kaggle_root = locate_kaggle_root(args.kaggle_root)
-    copy_kaggle_subset(
-        output_dirs=output_dirs,
-        counts=counts,
-        min_width=args.min_width,
-        min_height=args.min_height,
-        metadata_rows=metadata_rows,
-        counters=counters,
-        kaggle_root=kaggle_root,
-    )
+    if args.fashion_manifest:
+        copy_manifest_subset(
+            output_dirs=output_dirs,
+            counts=counts,
+            min_width=args.min_width,
+            min_height=args.min_height,
+            metadata_rows=metadata_rows,
+            counters=counters,
+            manifest_path=args.fashion_manifest,
+        )
+    else:
+        kaggle_root = locate_kaggle_root(args.kaggle_root)
+        copy_kaggle_subset(
+            output_dirs=output_dirs,
+            counts=counts,
+            min_width=args.min_width,
+            min_height=args.min_height,
+            metadata_rows=metadata_rows,
+            counters=counters,
+            kaggle_root=kaggle_root,
+        )
     copy_shopify_subset(
         output_dirs=output_dirs,
         counts=counts,
