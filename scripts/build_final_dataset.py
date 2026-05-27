@@ -5,6 +5,7 @@ import csv
 import logging
 import os
 import sys
+import zipfile
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -226,18 +227,73 @@ def locate_kaggle_root(cli_root: Path | None) -> Path:
             LOGGER.info("Using existing Kaggle dataset at %s", candidate)
             return candidate
 
+    last_error: Exception | None = None
+
     try:
         import kagglehub
-    except ImportError as exc:
-        raise RuntimeError(
-            "Kaggle dataset not found locally. Install kagglehub or provide --kaggle-root "
-            "or KAGGLE_FASHION_DATASET_DIR."
-        ) from exc
 
-    LOGGER.info("Downloading Kaggle dataset %s into local cache...", KAGGLE_DATASET_ID)
-    root = Path(kagglehub.dataset_download(KAGGLE_DATASET_ID))
-    LOGGER.info("Kaggle dataset cached at %s", root)
-    return root
+        LOGGER.info("Downloading Kaggle dataset %s into local cache via kagglehub...", KAGGLE_DATASET_ID)
+        root = Path(kagglehub.dataset_download(KAGGLE_DATASET_ID))
+        LOGGER.info("Kaggle dataset cached at %s", root)
+        return root
+    except Exception as exc:
+        last_error = exc
+        LOGGER.warning("kagglehub unavailable or broken, trying Kaggle API fallback: %s", exc)
+
+    try:
+        root = _download_with_kaggle_api()
+        LOGGER.info("Kaggle dataset extracted at %s", root)
+        return root
+    except Exception as exc:
+        message = (
+            "Kaggle dataset not found locally and automatic download failed. "
+            "Fix kagglehub/kagglesdk, configure the Kaggle API, or provide --kaggle-root "
+            "or KAGGLE_FASHION_DATASET_DIR."
+        )
+        if last_error is not None:
+            raise RuntimeError(f"{message}\nPrevious kagglehub error: {last_error}") from exc
+        raise RuntimeError(message) from exc
+
+
+def _download_with_kaggle_api() -> Path:
+    cache_root = PROJECT_ROOT / "dataset_cache" / "kaggle_fashion"
+    cache_root.mkdir(parents=True, exist_ok=True)
+
+    styles_csv = next(cache_root.rglob("styles.csv"), None)
+    images_dir = next((p for p in cache_root.rglob("images") if p.is_dir()), None)
+    if styles_csv and images_dir:
+        return cache_root
+
+    try:
+        from kaggle.api.kaggle_api_extended import KaggleApi
+    except Exception as exc:
+        raise RuntimeError("Kaggle API package is not available.") from exc
+
+    api = KaggleApi()
+    api.authenticate()
+
+    dataset_slug = KAGGLE_DATASET_ID
+    zip_target = cache_root / "fashion-product-images-dataset.zip"
+
+    if not zip_target.exists():
+        LOGGER.info("Downloading Kaggle dataset %s via Kaggle API...", dataset_slug)
+        api.dataset_download_files(dataset_slug, path=str(cache_root), unzip=False, quiet=False)
+
+    if not zip_target.exists():
+        discovered = list(cache_root.glob("*.zip"))
+        if discovered:
+            zip_target = discovered[0]
+        else:
+            raise FileNotFoundError("Kaggle API did not produce the expected dataset archive.")
+
+    extract_root = cache_root / "extracted"
+    if not extract_root.exists():
+        extract_root.mkdir(parents=True, exist_ok=True)
+        LOGGER.info("Extracting %s ...", zip_target)
+        with zipfile.ZipFile(zip_target, "r") as archive:
+            archive.extractall(extract_root)
+
+    return extract_root
 
 
 def locate_styles_and_images(root: Path) -> tuple[Path, Path]:
