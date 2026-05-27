@@ -221,9 +221,9 @@ Le protocole cible est :
 Etat reel du depot :
 
 - `dataset/` est maintenant la source de travail par defaut
-- `metadata.csv` est ecrit de maniere incrementale pendant la construction du dataset final
-- `data/` reste present comme heritage de l'ancienne base de travail
-- le dataset final continue de se remplir progressivement avec des images plus propres que la base historique
+- `dataset/originals/` contient le dataset final propre
+- `dataset/degraded/` contient les degradations controlees
+- `metadata.csv` et `degraded_metadata.csv` sont disponibles
 
 ## 8. Evaluation
 
@@ -252,10 +252,9 @@ Deux scripts principaux existent pour la validation :
 
 ## 10. Limites actuelles
 
-- le build du dataset final n'est pas encore termine
-- une partie des references historiques en `300x300` existe encore dans `data/`
 - la qualite du fallback regions candidates depend du type d'image
-- les supports de soutenance doivent encore etre finalises sur la version zero-shot definitive
+- la sensibilite est tres bonne sur le flou mais plus moderee sur `lowres` et `bad_crop`
+- la correlation humaine finale reste significative mais moderee
 
 ## 11. Conclusion
 
