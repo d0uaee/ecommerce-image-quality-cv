@@ -6,13 +6,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from config import OUTPUT_DIR
+from config import OUTPUT_DIR, RAW_IMAGES_DIR
 from src.candidate_region_generator import propose_regions
 from src.selector import select_product
 from src.text_processor import process_text
 
-
-RAW_IMAGES_DIR = Path("data/raw_images")
 REPORT_PATH = OUTPUT_DIR / "reports" / "selector_multi_product_report.json"
 COMPOSITE_PATH = OUTPUT_DIR / "reports" / "selector_multi_product_input.jpg"
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
