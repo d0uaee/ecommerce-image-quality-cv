@@ -93,13 +93,12 @@ def select_evaluation_images(limit: int = 50) -> list[dict[str, Any]]:
 
 def build_human_template(limit: int = 50) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
-    cwd = Path.cwd()
     for item in select_evaluation_images(limit):
         image_path = item["image_path"]
         analysis = analyze(image_path, text_data=NEUTRAL_TEXT_DATA)
         rows.append(
             {
-                "image": str(image_path.relative_to(cwd)),
+                "image": str(image_path).replace("\\", "/"),
                 "source_type": item["source_type"],
                 "score_auto": round(float(analysis["global_score"]) / 100.0, 4),
                 "score_humain": "",
