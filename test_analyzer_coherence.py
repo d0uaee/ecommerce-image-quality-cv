@@ -3,14 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from config import OUTPUT_DIR
+from config import OUTPUT_DIR, RAW_IMAGES_DIR
 from src.analyzer import analyze
 from src.candidate_region_generator import propose_regions
 from src.selector import select_product
 from src.text_processor import process_text
 
-
-RAW_IMAGES_DIR = Path("data/raw_images")
 REPORT_PATH = OUTPUT_DIR / "reports" / "analyzer_coherence_report.json"
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
