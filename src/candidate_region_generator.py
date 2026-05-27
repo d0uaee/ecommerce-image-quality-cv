@@ -147,6 +147,11 @@ def propose_regions(image: str | Path | np.ndarray) -> list[dict[str, Any]]:
     image_bgr = _load_image(image)
     height, width = image_bgr.shape[:2]
 
+    if REGION_PROPOSAL_CONFIG["use_dino"]:
+        dino_candidates = detect_with_dino(image_bgr, "product")
+        if dino_candidates:
+            return dino_candidates[: REGION_PROPOSAL_CONFIG["max_regions"]]
+
     candidate_boxes = _regions_from_saliency(image_bgr)
     if not candidate_boxes:
         candidate_boxes = _regions_from_contours(image_bgr)
