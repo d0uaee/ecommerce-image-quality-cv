@@ -245,7 +245,9 @@ def write_consolidated_report(
         lines.append("")
         lines.append("### Tableau cible")
         lines.append("")
-        lines.append(sensitivity_info["target_summary"].to_markdown(index=False))
+        lines.append("```text")
+        lines.append(sensitivity_info["target_summary"].to_string(index=False))
+        lines.append("```")
     lines.append("")
 
     CONSOLIDATED_REPORT_MD.write_text("\n".join(lines), encoding="utf-8")
