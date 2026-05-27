@@ -3,571 +3,342 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PFE CV/NLP - Pipeline Projet</title>
+  <title>Pipeline Zero-Shot PFE</title>
   <style>
     :root {
-      --bg: #f4f6f8;
+      --bg: #f6f7fb;
       --card: #ffffff;
-      --text: #1f2937;
-      --muted: #667085;
-      --ok: #0f9d58;
-      --doing: #f59e0b;
-      --todo: #64748b;
+      --text: #18212f;
+      --muted: #5f6b7a;
+      --line: #dde3ea;
       --accent: #0f766e;
-      --accent-soft: #ccfbf1;
-      --line: #e5e7eb;
-      --danger: #c2410c;
+      --accent-soft: #dff8f3;
+      --blue: #1d4ed8;
+      --blue-soft: #dbeafe;
+      --amber: #d97706;
+      --amber-soft: #fff3dd;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: "Segoe UI", "Trebuchet MS", Tahoma, sans-serif;
-      background:
-        radial-gradient(circle at 8% 12%, #dbeafe 0%, transparent 36%),
-        radial-gradient(circle at 90% 10%, #ccfbf1 0%, transparent 32%),
-        var(--bg);
+      font-family: "Segoe UI", Tahoma, sans-serif;
       color: var(--text);
+      background:
+        radial-gradient(circle at 10% 10%, #e0f2fe 0%, transparent 28%),
+        radial-gradient(circle at 90% 8%, #dcfce7 0%, transparent 26%),
+        var(--bg);
     }
 
-    .container {
+    .wrap {
       width: min(1180px, 94vw);
-      margin: 28px auto 40px;
+      margin: 28px auto 44px;
     }
 
     .hero {
-      background: linear-gradient(128deg, #0f172a, #134e4a);
-      color: #f8fafc;
-      border-radius: 20px;
+      background: linear-gradient(130deg, #0f172a, #115e59);
+      color: white;
       padding: 28px;
-      box-shadow: 0 16px 40px rgba(2, 6, 23, 0.18);
+      border-radius: 22px;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
     }
 
     .hero h1 {
       margin: 0 0 10px;
-      font-size: clamp(1.4rem, 2.8vw, 2.2rem);
-      letter-spacing: 0.2px;
+      font-size: clamp(1.5rem, 2.8vw, 2.3rem);
     }
 
     .hero p {
       margin: 0;
-      color: #dbeafe;
       line-height: 1.55;
+      color: #d9f8f2;
+      max-width: 900px;
     }
 
-    .badge-row {
+    .chips {
       margin-top: 14px;
       display: flex;
-      gap: 10px;
       flex-wrap: wrap;
+      gap: 10px;
     }
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+    .chip {
       border-radius: 999px;
-      padding: 6px 12px;
+      padding: 7px 12px;
       font-size: 0.9rem;
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.08);
+    }
+
+    .section {
+      margin-top: 18px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.15rem;
     }
 
     .grid {
-      margin-top: 18px;
       display: grid;
-      gap: 16px;
+      gap: 14px;
       grid-template-columns: repeat(12, 1fr);
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 18px;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
     }
 
     .col-8 { grid-column: span 8; }
     .col-4 { grid-column: span 4; }
-    .col-12 { grid-column: span 12; }
     .col-6 { grid-column: span 6; }
-
-    h2 {
-      margin: 0 0 12px;
-      font-size: 1.15rem;
-    }
+    .col-12 { grid-column: span 12; }
 
     .pipeline {
       display: grid;
-      gap: 10px;
+      gap: 12px;
     }
 
     .step {
       border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 12px;
+      border-radius: 14px;
+      padding: 14px;
+      background: #fff;
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: 42px 1fr;
       gap: 12px;
-      align-items: center;
-      background: #fff;
+      align-items: start;
     }
 
-    .step-index {
-      width: 34px;
-      height: 34px;
-      border-radius: 10px;
-      display: inline-grid;
-      place-items: center;
-      font-weight: 700;
-      background: #eef2ff;
-      color: #1e3a8a;
-    }
-
-    .step-title {
-      font-weight: 700;
-      margin-bottom: 3px;
-    }
-
-    .step-sub {
-      color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.35;
-    }
-
-    .status {
-      border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 0.8rem;
-      white-space: nowrap;
-      font-weight: 600;
-      border: 1px solid transparent;
-    }
-
-    .done {
-      background: #dcfce7;
-      color: #166534;
-      border-color: #bbf7d0;
-    }
-
-    .inprogress {
-      background: #fff7ed;
-      color: #9a3412;
-      border-color: #fed7aa;
-    }
-
-    .planned {
-      background: #f1f5f9;
-      color: #334155;
-      border-color: #cbd5e1;
-    }
-
-    .kpi {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-
-    .kpi-box {
-      border: 1px solid var(--line);
+    .index {
+      width: 42px;
+      height: 42px;
       border-radius: 12px;
-      padding: 12px;
-      background: #fff;
-      text-align: center;
-    }
-
-    .kpi-box .n {
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: var(--accent);
-    }
-
-    .kpi-box .l {
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    .bars {
-      margin-top: 12px;
-      display: grid;
-      gap: 10px;
-    }
-
-    .bar-row {
-      display: grid;
-      grid-template-columns: 120px 1fr 56px;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.92rem;
-    }
-
-    .track {
-      height: 10px;
-      border-radius: 999px;
-      background: #e2e8f0;
-      overflow: hidden;
-    }
-
-    .fill {
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #0ea5e9, #0f766e);
-      width: 0;
-      transition: width 1s ease;
-    }
-
-    .donut-wrap {
       display: grid;
       place-items: center;
-      margin: 8px 0 0;
-    }
-
-    .donut {
-      width: 200px;
-      aspect-ratio: 1/1;
-      border-radius: 50%;
-      background: conic-gradient(
-        var(--ok) 0 40%,
-        var(--doing) 40% 63%,
-        var(--todo) 63% 100%
-      );
-      position: relative;
-      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
-    }
-
-    .donut::after {
-      content: "";
-      position: absolute;
-      inset: 22%;
-      background: white;
-      border-radius: 50%;
-      box-shadow: inset 0 0 0 1px #e5e7eb;
-    }
-
-    .donut-label {
-      margin-top: -126px;
-      text-align: center;
       font-weight: 800;
-      font-size: 1.2rem;
-      color: #0f172a;
-      z-index: 2;
+      background: var(--blue-soft);
+      color: var(--blue);
     }
 
-    .legend {
-      margin-top: 14px;
-      display: flex;
-      justify-content: center;
-      gap: 14px;
-      flex-wrap: wrap;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 6px;
-      vertical-align: middle;
-    }
-
-    .timeline {
-      display: grid;
-      gap: 12px;
-    }
-
-    .lane {
-      border-left: 3px solid #d1d5db;
-      padding-left: 12px;
-      position: relative;
-    }
-
-    .lane::before {
-      content: "";
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #334155;
-      position: absolute;
-      left: -6.5px;
-      top: 4px;
-    }
-
-    .lane h3 {
-      margin: 0;
+    .step h3 {
+      margin: 0 0 6px;
       font-size: 1rem;
     }
 
-    .lane p {
-      margin: 6px 0 0;
+    .step p {
+      margin: 0;
       color: var(--muted);
       line-height: 1.45;
-      font-size: 0.93rem;
+      font-size: 0.94rem;
     }
 
-    .stack {
-      margin-top: 6px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .chip {
+    .formula {
+      border-radius: 14px;
+      padding: 16px;
       background: var(--accent-soft);
-      color: #115e59;
-      border: 1px solid #99f6e4;
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 0.8rem;
-      font-weight: 600;
+      border: 1px solid #bdeee4;
+      font-family: Consolas, "Courier New", monospace;
+      color: #0f172a;
+      line-height: 1.7;
     }
 
-    .footer {
-      margin-top: 14px;
-      color: #475569;
-      font-size: 0.9rem;
-      background: #fff;
-      border: 1px dashed #cbd5e1;
-      border-radius: 12px;
-      padding: 12px;
-      line-height: 1.5;
+    .card-mini {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: white;
     }
 
-    @media (max-width: 980px) {
+    .card-mini h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+
+    .card-mini p,
+    .card-mini li {
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.94rem;
+    }
+
+    ul {
+      margin: 8px 0 0 18px;
+      padding: 0;
+    }
+
+    .highlight {
+      border-radius: 14px;
+      padding: 15px;
+      background: var(--amber-soft);
+      border: 1px solid #f8d8a3;
+    }
+
+    .highlight strong {
+      color: #92400e;
+    }
+
+    @media (max-width: 900px) {
       .col-8, .col-4, .col-6, .col-12 {
         grid-column: span 12;
-      }
-      .kpi {
-        grid-template-columns: 1fr;
-      }
-      .bar-row {
-        grid-template-columns: 90px 1fr 46px;
-      }
-      .step {
-        grid-template-columns: auto 1fr;
-      }
-      .status {
-        justify-self: start;
       }
     }
   </style>
 </head>
 <body>
-  <main class="container">
+  <div class="wrap">
     <section class="hero">
-      <h1>PFE Computer Vision/NLP - Roadmap de pipeline</h1>
+      <h1>Pipeline zero-shot multimodal pour l'evaluation de qualite photo e-commerce</h1>
       <p>
-        Cette page montre clairement: ce qui est déjà réalisé dans le prototype,
-        ce qui est en cours de consolidation, et ce qui sera ajouté pour atteindre un niveau PFE solide.
+        Le projet n'entraine aucun modele. Il combine texte d'annonce, vision classique,
+        CLIP, scoring interpretable et recommandations actionnables pour aider de petits
+        vendeurs a ameliorer leurs photos produits.
       </p>
-      <div class="badge-row">
-        <span class="badge">Projet: Analyse qualité image e-commerce</span>
-        <span class="badge">Phase actuelle: Prototype + Test</span>
-        <span class="badge">Objectif: Pipeline intelligent de bout en bout</span>
+      <div class="chips">
+        <span class="chip">Zero-shot</span>
+        <span class="chip">Texte = source de verite</span>
+        <span class="chip">Pas d'OCR central</span>
+        <span class="chip">Explicabilite</span>
+        <span class="chip">3 familles de produits</span>
       </div>
     </section>
 
-    <section class="grid">
-      <article class="card col-8">
-        <h2>Pipeline Final - Vision globale</h2>
-        <div class="pipeline">
-          <div class="step">
-            <div class="step-index">1</div>
-            <div>
-              <div class="step-title">Prétraitement</div>
-              <div class="step-sub">Resize, normalisation, amélioration contraste pour stabiliser les résultats.</div>
+    <section class="section">
+      <h2>Pipeline actuel</h2>
+      <div class="grid">
+        <div class="col-8">
+          <div class="pipeline">
+            <div class="step">
+              <div class="index">1</div>
+              <div>
+                <h3>Annonce en entree</h3>
+                <p>Image + titre + description. Le texte sert de reference metier principale pour guider l'analyse.</p>
+              </div>
             </div>
-            <span class="status inprogress">En amélioration</span>
-          </div>
-
-          <div class="step">
-            <div class="step-index">2</div>
-            <div>
-              <div class="step-title">Détection produit (DINO + prompt intelligent)</div>
-              <div class="step-sub">Détection actuelle disponible, évolution vers OCR + mots-clés + prompt dynamique.</div>
+            <div class="step">
+              <div class="index">2</div>
+              <div>
+                <h3>Text processor</h3>
+                <p>Nettoyage du texte, extraction categorie / couleur / marque, puis generation d'un embedding texte CLIP.</p>
+              </div>
             </div>
-            <span class="status inprogress">Partiellement fait</span>
-          </div>
-
-          <div class="step">
-            <div class="step-index">3</div>
-            <div>
-              <div class="step-title">Raffinement masque (GrabCut)</div>
-              <div class="step-sub">Bounding box + extraction plus propre de l'objet principal.</div>
+            <div class="step">
+              <div class="index">3</div>
+              <div>
+                <h3>Candidate region generator</h3>
+                <p>Propose jusqu'a 5 regions candidates sans labels, via saliency OpenCV ou fallback contours. DINO existe comme securite activable.</p>
+              </div>
             </div>
-            <span class="status done">Fait</span>
-          </div>
-
-          <div class="step">
-            <div class="step-index">4</div>
-            <div>
-              <div class="step-title">Analyse qualité (CV classique)</div>
-              <div class="step-sub">Blur, luminosité, centrage, taille produit, fond blanc, watermark.</div>
+            <div class="step">
+              <div class="index">4</div>
+              <div>
+                <h3>Selector</h3>
+                <p>Compare chaque crop candidat au texte et choisit le produit principal avec une formule explicable.</p>
+              </div>
             </div>
-            <span class="status done">Fait</span>
-          </div>
-
-          <div class="step">
-            <div class="step-index">5</div>
-            <div>
-              <div class="step-title">CNN qualité globale</div>
-              <div class="step-sub">Classification Good / Medium / Bad pour capter la perception utilisateur.</div>
+            <div class="step">
+              <div class="index">5</div>
+              <div>
+                <h3>Analyzer</h3>
+                <p>Evalue la nettete, l'exposition, le contraste, la balance couleurs, la resolution effective et la coherence image / texte.</p>
+              </div>
             </div>
-            <span class="status planned">À faire</span>
-          </div>
-
-          <div class="step">
-            <div class="step-index">6</div>
-            <div>
-              <div class="step-title">Fusion & Explication</div>
-              <div class="step-sub">Fusion scores CV + CNN, diagnostic clair et recommandations actionnables.</div>
+            <div class="step">
+              <div class="index">6</div>
+              <div>
+                <h3>Sortie interpretable</h3>
+                <p>Score global, sous-scores, crop selectionne et recommandations FR / Darija.</p>
+              </div>
             </div>
-            <span class="status inprogress">En conception</span>
-          </div>
-
-          <div class="step">
-            <div class="step-index">7</div>
-            <div>
-              <div class="step-title">Bonus: Produits similaires</div>
-              <div class="step-sub">CLIP embedding + nearest neighbors sur dataset produit.</div>
-            </div>
-            <span class="status planned">Bonus</span>
-          </div>
-
-          <div class="step">
-            <div class="step-index">8</div>
-            <div>
-              <div class="step-title">Bonus: Infos externes</div>
-              <div class="step-sub">Estimation prix, popularité, signaux marché via API/automation.</div>
-            </div>
-            <span class="status planned">Bonus</span>
-          </div>
-        </div>
-      </article>
-
-      <article class="card col-4">
-        <h2>Statut global du projet</h2>
-        <div class="kpi">
-          <div class="kpi-box">
-            <div class="n">2 / 8</div>
-            <div class="l">Étapes terminées</div>
-          </div>
-          <div class="kpi-box">
-            <div class="n">3 / 8</div>
-            <div class="l">En cours</div>
-          </div>
-          <div class="kpi-box">
-            <div class="n">3 / 8</div>
-            <div class="l">Planifiées</div>
           </div>
         </div>
 
-        <div class="donut-wrap">
-          <div class="donut" aria-label="Avancement projet"></div>
-          <div class="donut-label">40%<br><span style="font-size:0.75rem;color:#64748b;font-weight:600">Prototype validé</span></div>
-        </div>
-
-        <div class="legend">
-          <span><span class="dot" style="background:var(--ok)"></span>Fait</span>
-          <span><span class="dot" style="background:var(--doing)"></span>En cours</span>
-          <span><span class="dot" style="background:var(--todo)"></span>À faire</span>
-        </div>
-      </article>
-
-      <article class="card col-6">
-        <h2>Progression par module</h2>
-        <div class="bars">
-          <div class="bar-row">
-            <div>Collecte data</div>
-            <div class="track"><div class="fill" data-p="35"></div></div>
-            <div>35%</div>
+        <div class="col-4">
+          <div class="formula">
+            selector score =<br>
+            0.6 * clip_text_similarity<br>
+            + 0.25 * size_centrality<br>
+            + 0.15 * category_coherence
           </div>
-          <div class="bar-row">
-            <div>Détection</div>
-            <div class="track"><div class="fill" data-p="55"></div></div>
-            <div>55%</div>
-          </div>
-          <div class="bar-row">
-            <div>Segmentation</div>
-            <div class="track"><div class="fill" data-p="70"></div></div>
-            <div>70%</div>
-          </div>
-          <div class="bar-row">
-            <div>Qualité CV</div>
-            <div class="track"><div class="fill" data-p="75"></div></div>
-            <div>75%</div>
-          </div>
-          <div class="bar-row">
-            <div>CNN</div>
-            <div class="track"><div class="fill" data-p="10"></div></div>
-            <div>10%</div>
-          </div>
-          <div class="bar-row">
-            <div>Recommandeur</div>
-            <div class="track"><div class="fill" data-p="15"></div></div>
-            <div>15%</div>
+          <div style="height:12px"></div>
+          <div class="highlight">
+            <strong>Message pour le jury :</strong><br>
+            l'innovation ne vient pas d'un nouveau reseau entraine, mais de la fusion
+            zero-shot entre texte, crop selectionne, CLIP et heuristiques qualite.
           </div>
         </div>
-      </article>
-
-      <article class="card col-6">
-        <h2>Plan d'exécution (version PFE)</h2>
-        <div class="timeline">
-          <div class="lane">
-            <h3>Phase A - Data & Prétraitement</h3>
-            <p>Collecte multi-sources (fonds variés, catégories variées), nettoyage, normalisation, split train/val/test.</p>
-          </div>
-          <div class="lane">
-            <h3>Phase B - Détection intelligente</h3>
-            <p>OCR du produit, extraction mots-clés, génération de prompt, détection robuste avec fallback.</p>
-          </div>
-          <div class="lane">
-            <h3>Phase C - Scoring hybride</h3>
-            <p>CV classique + CNN qualité globale, puis fusion et explication interprétable pour l'utilisateur.</p>
-          </div>
-          <div class="lane">
-            <h3>Phase D - Recommandation & business insights</h3>
-            <p>Produits similaires (image + texte), estimation prix, signaux de popularité, recommandations e-commerce.</p>
-          </div>
-        </div>
-      </article>
-
-      <article class="card col-12">
-        <h2>Stack technique visée</h2>
-        <div class="stack">
-          <span class="chip">Streamlit</span>
-          <span class="chip">OpenCV</span>
-          <span class="chip">OCR (EasyOCR / Tesseract)</span>
-          <span class="chip">Grounding DINO</span>
-          <span class="chip">GrabCut</span>
-          <span class="chip">PyTorch</span>
-          <span class="chip">CNN custom</span>
-          <span class="chip">CLIP embeddings</span>
-          <span class="chip">FAISS / Nearest Neighbors</span>
-          <span class="chip">API externes (prix/popularité)</span>
-        </div>
-
-        <div class="footer">
-          Message clé pour la soutenance: la version actuelle valide la faisabilité technique,
-          et la roadmap transforme le prototype en système intelligent complet (CV + NLP + recommandation)
-          avec impact concret pour e-commerce.
-        </div>
-      </article>
+      </div>
     </section>
-  </main>
 
-  <script>
-    const fills = document.querySelectorAll('.fill');
-    requestAnimationFrame(() => {
-      fills.forEach((el) => {
-        el.style.width = el.dataset.p + '%';
-      });
-    });
-  </script>
+    <section class="section">
+      <h2>Hypotheses et choix de conception</h2>
+      <div class="grid">
+        <div class="col-6">
+          <div class="card-mini">
+            <h3>Choix methodologiques</h3>
+            <ul>
+              <li>Le texte de l'annonce est la verite principale.</li>
+              <li>Aucun OCR dans le chemin critique.</li>
+              <li>Aucun entrainement de modele dans le depot.</li>
+              <li>La couleur reste un signal leger, jamais dominant.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="card-mini">
+            <h3>Scope reduit</h3>
+            <ul>
+              <li>shoes</li>
+              <li>clothing</li>
+              <li>portable_electronics</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Explicabilite</h2>
+      <div class="grid">
+        <div class="col-4">
+          <div class="card-mini">
+            <h3>Ce que l'utilisateur voit</h3>
+            <ul>
+              <li>crop selectionne</li>
+              <li>score global</li>
+              <li>barres de criteres</li>
+              <li>coherence image / texte</li>
+              <li>recommandations</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="card-mini">
+            <h3>Ce que le jury peut verifier</h3>
+            <ul>
+              <li>regions candidates proposees</li>
+              <li>score CLIP par crop</li>
+              <li>poids de selection</li>
+              <li>sous-scores qualite</li>
+              <li>sensibilite sur images degradees</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="card-mini">
+            <h3>Validation experimentale</h3>
+            <ul>
+              <li>images degradees a verite-terrain connue</li>
+              <li>baisse moyenne du bon critere</li>
+              <li>rapport de sensibilite par critere</li>
+              <li>echelle humaine via Spearman</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
 </body>
 </html>
