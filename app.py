@@ -63,10 +63,21 @@ def _load_dataset_announcements() -> pd.DataFrame:
 
     frame = pd.read_csv(METADATA_CSV)
     required = {"title", "description", "image_path"}
-    missing = required - set(frame.columns)
-    if missing:
-        return pd.DataFrame(columns=["title", "description", "image_path"])
-    return frame.fillna("")
+    if required.issubset(frame.columns):
+        return frame.fillna("")
+
+    legacy_required = {"product_name", "category", "local_path"}
+    if legacy_required.issubset(frame.columns):
+        normalized = pd.DataFrame(
+            {
+                "title": frame["product_name"].fillna(""),
+                "description": frame["category"].fillna(""),
+                "image_path": frame["local_path"].fillna(""),
+            }
+        )
+        return normalized
+
+    return pd.DataFrame(columns=["title", "description", "image_path"])
 
 
 def _annotate_selected_region(image_rgb: np.ndarray, bbox: tuple[int, int, int, int]) -> np.ndarray:
