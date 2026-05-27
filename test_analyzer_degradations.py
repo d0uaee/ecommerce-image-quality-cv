@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from config import RAW_IMAGES_DIR
 from generate_degraded import (
     apply_bad_crop,
     apply_blur,
@@ -14,7 +15,6 @@ from generate_degraded import (
 )
 from src.analyzer import analyze
 
-RAW_IMAGES_DIR = Path("data/raw_images")
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
@@ -24,7 +24,7 @@ def first_real_image() -> np.ndarray:
             image = cv2.imread(str(path), cv2.IMREAD_COLOR)
             if image is not None:
                 return image
-    raise RuntimeError("Aucune image de test trouvee dans data/raw_images")
+    raise RuntimeError(f"Aucune image de test trouvee dans {RAW_IMAGES_DIR}")
 
 
 def build_clean_reference() -> np.ndarray:
