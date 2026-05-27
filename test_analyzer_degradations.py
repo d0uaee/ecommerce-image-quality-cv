@@ -14,7 +14,6 @@ from generate_degraded import (
 )
 from src.analyzer import analyze
 
-
 RAW_IMAGES_DIR = Path("data/raw_images")
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -25,7 +24,7 @@ def first_real_image() -> np.ndarray:
             image = cv2.imread(str(path), cv2.IMREAD_COLOR)
             if image is not None:
                 return image
-    raise RuntimeError("Aucune image de test trouvée dans data/raw_images")
+    raise RuntimeError("Aucune image de test trouvee dans data/raw_images")
 
 
 def build_clean_reference() -> np.ndarray:
@@ -60,7 +59,7 @@ def assert_drop(base: float, degraded: float, criterion: str, min_drop: float = 
         print(f"[OK] {criterion}: {base:.2f} -> {degraded:.2f}")
         return
     raise AssertionError(
-        f"{criterion} ne chute pas assez: score initial={base:.2f}, score dégradé={degraded:.2f}"
+        f"{criterion} ne chute pas assez: score initial={base:.2f}, score degrade={degraded:.2f}"
     )
 
 
