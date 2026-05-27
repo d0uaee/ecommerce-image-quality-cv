@@ -130,13 +130,18 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
     std_brightness = float(gray.std())
     p10 = float(np.percentile(gray, 10))
     p90 = float(np.percentile(gray, 90))
-    shadow_ratio = float(np.mean(gray <= 35))
+    p05 = float(np.percentile(gray, 5))
+    p95 = float(np.percentile(gray, 95))
+    black_clip_ratio = float(np.mean(gray <= 3))
     highlight_ratio = float(np.mean(gray >= 245))
     target = thresholds["target_mean"]
     deviation = abs(mean_brightness - target)
+    dynamic_range = p95 - p05
 
-    if mean_brightness <= thresholds["extreme_dark"] or mean_brightness >= thresholds["extreme_bright"]:
-        score = 12.0
+    if mean_brightness <= thresholds["extreme_dark"] and p90 < 170:
+        score = 18.0
+    elif mean_brightness >= thresholds["extreme_bright"] and p10 > 90:
+        score = 18.0
     elif deviation <= thresholds["tolerance_good"]:
         score = 100.0 - (deviation / max(thresholds["tolerance_good"], 1.0)) * 12.0
     elif deviation <= thresholds["tolerance_ok"]:
@@ -144,20 +149,26 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
             thresholds["tolerance_ok"] - thresholds["tolerance_good"]
         ) * 38.0
     else:
-        score = max(18.0, 50.0 - (deviation - thresholds["tolerance_ok"]) * 1.1)
+        score = max(30.0, 58.0 - (deviation - thresholds["tolerance_ok"]) * 0.75)
 
     if mean_brightness < target:
-        darkness_penalty = max(0.0, (80.0 - p10) * 0.32) + shadow_ratio * 42.0
-        score -= darkness_penalty
+        if p90 < 150:
+            score -= (150.0 - p90) * 0.45
+        if dynamic_range < 90:
+            score -= (90.0 - dynamic_range) * 0.28
+        score -= black_clip_ratio * 45.0
     else:
-        highlight_penalty = max(0.0, (p90 - 235.0) * 0.40) + highlight_ratio * 38.0
-        score -= highlight_penalty
+        if p10 > 110:
+            score -= (p10 - 110.0) * 0.45
+        if dynamic_range < 90:
+            score -= (90.0 - dynamic_range) * 0.24
+        score -= highlight_ratio * 55.0
 
     final_score = _clamp(score)
 
-    if mean_brightness < thresholds["extreme_dark"]:
+    if mean_brightness < thresholds["extreme_dark"] and p90 < 170:
         message = "Sous-exposition forte : l'image est trop sombre."
-    elif mean_brightness > thresholds["extreme_bright"]:
+    elif mean_brightness > thresholds["extreme_bright"] and p10 > 90:
         message = "Surexposition forte : les hautes lumieres sont brulees."
     elif final_score < 45.0:
         message = "Exposition a corriger : l'image parait trop sombre ou desequilibree."
@@ -174,8 +185,11 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
             "std_brightness": round(std_brightness, 2),
             "p10": round(p10, 2),
             "p90": round(p90, 2),
-            "shadow_ratio": round(shadow_ratio, 4),
+            "p05": round(p05, 2),
+            "p95": round(p95, 2),
+            "black_clip_ratio": round(black_clip_ratio, 4),
             "highlight_ratio": round(highlight_ratio, 4),
+            "dynamic_range": round(dynamic_range, 2),
         },
         message,
     )
@@ -311,7 +325,7 @@ def _coherence_score(image_bgr: np.ndarray, text_data: dict[str, Any] | None) ->
     ).reshape(-1)
     image_embedding = _encode_image_embedding(image_bgr)
     clip_similarity = _cosine_similarity(image_embedding, text_embedding)
-    clip_score = clip_similarity * 100.0
+    clip_score = _linear_score(clip_similarity, 0.35, 0.75)
 
     expected_color = text_data.get("color")
     dominant_color = _closest_color_name(image_bgr)
