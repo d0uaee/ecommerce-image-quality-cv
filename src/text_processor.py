@@ -27,7 +27,11 @@ _SPACY_NLP = None
 _SPACY_LOAD_ATTEMPTED = False
 _EMBEDDING_MODEL = None
 _EMBEDDING_LOAD_ATTEMPTED = False
+_CLIP_IMAGE_MODEL = None
+_CLIP_IMAGE_PROCESSOR = None
+_CLIP_IMAGE_LOAD_ATTEMPTED = False
 _embed_backend = "none"
+_CLIP_IMAGE_MODEL_ID = "openai/clip-vit-base-patch32"
 
 
 def _normalize(text: str) -> str:
@@ -74,6 +78,25 @@ def _load_embedding_model():
         _EMBEDDING_MODEL = None
         _embed_backend = "none"
     return _EMBEDDING_MODEL
+
+
+def _load_clip_image_encoder():
+    global _CLIP_IMAGE_MODEL, _CLIP_IMAGE_PROCESSOR, _CLIP_IMAGE_LOAD_ATTEMPTED
+    if _CLIP_IMAGE_MODEL is not None and _CLIP_IMAGE_PROCESSOR is not None:
+        return _CLIP_IMAGE_MODEL, _CLIP_IMAGE_PROCESSOR
+    if _CLIP_IMAGE_LOAD_ATTEMPTED:
+        return None, None
+
+    _CLIP_IMAGE_LOAD_ATTEMPTED = True
+    try:
+        from transformers import CLIPModel, CLIPProcessor
+
+        _CLIP_IMAGE_PROCESSOR = CLIPProcessor.from_pretrained(_CLIP_IMAGE_MODEL_ID)
+        _CLIP_IMAGE_MODEL = CLIPModel.from_pretrained(_CLIP_IMAGE_MODEL_ID)
+    except Exception:
+        _CLIP_IMAGE_MODEL = None
+        _CLIP_IMAGE_PROCESSOR = None
+    return _CLIP_IMAGE_MODEL, _CLIP_IMAGE_PROCESSOR
 
 
 def _tokenize(text: str) -> list[str]:
@@ -168,6 +191,50 @@ def _embed_cached(clean_text: str) -> np.ndarray:
 
     try:
         vector = model.encode(clean_text, convert_to_numpy=True, normalize_embeddings=True)
+    except Exception:
+        return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
+
+    array = np.asarray(vector, dtype=np.float32).reshape(-1)
+    if array.size == EMBEDDING_VECTOR_SIZE:
+        return array
+    if array.size > EMBEDDING_VECTOR_SIZE:
+        return array[:EMBEDDING_VECTOR_SIZE]
+
+    padded = np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
+    padded[: array.size] = array
+    return padded
+
+
+def encode_image_embedding(image: Any) -> np.ndarray:
+    text_model = _load_embedding_model()
+    image_model, image_processor = _load_clip_image_encoder()
+    if _embed_backend != "clip" or text_model is None or image_model is None or image_processor is None:
+        return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
+
+    try:
+        import torch
+        from PIL import Image
+    except Exception:
+        return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
+
+    if isinstance(image, Image.Image):
+        pil_image = image.convert("RGB")
+    else:
+        array = np.asarray(image)
+        if array.ndim == 2:
+            array = np.stack([array] * 3, axis=-1)
+        if array.ndim != 3 or array.shape[2] != 3:
+            return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
+        pil_image = Image.fromarray(array.astype(np.uint8)).convert("RGB")
+
+    try:
+        inputs = image_processor(images=pil_image, return_tensors="pt")
+        with torch.no_grad():
+            features = image_model.get_image_features(**inputs)
+        vector = features.detach().cpu().numpy().reshape(-1)
+        norm = float(np.linalg.norm(vector))
+        if norm > 0.0:
+            vector = vector / norm
     except Exception:
         return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
 
