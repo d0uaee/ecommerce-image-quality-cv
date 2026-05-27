@@ -868,6 +868,71 @@ def persist_metadata(metadata_path: Path, rows: list[dict[str, str]]) -> None:
     write_metadata(metadata_path, rows)
 
 
+def load_existing_rows(metadata_path: Path) -> list[dict[str, str]]:
+    if not metadata_path.exists():
+        return []
+
+    with metadata_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        return [dict(row) for row in reader]
+
+
+def bootstrap_existing_dataset(
+    *,
+    output_dirs: dict[str, Path],
+    metadata_rows: list[dict[str, str]],
+    counts: dict[str, int],
+    counters: dict[str, int],
+) -> None:
+    existing_rows = load_existing_rows(output_dirs["metadata"])
+    rows_by_path = {row["filepath"]: row for row in existing_rows if row.get("filepath")}
+    metadata_rows.extend(existing_rows)
+
+    for category in TARGET_COUNTS:
+        category_dir = output_dirs["originals"] / category
+        if not category_dir.exists():
+            continue
+
+        for image_path in sorted(category_dir.iterdir()):
+            if not image_path.is_file() or image_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                continue
+
+            image_id = image_path.stem
+            counts[category] += 1
+
+            try:
+                suffix_value = int(image_id.split("_")[-1])
+                counters[category] = max(counters[category], suffix_value)
+            except ValueError:
+                counters[category] = max(counters[category], counts[category])
+
+            path_key = str(image_path)
+            if path_key in rows_by_path:
+                continue
+
+            try:
+                with Image.open(image_path) as image:
+                    width, height = image.size
+            except OSError:
+                width = 0
+                height = 0
+
+            metadata_rows.append(
+                build_metadata_row(
+                    image_id=image_id,
+                    filename=image_path.name,
+                    filepath=image_path,
+                    category=category,
+                    source_dataset="bootstrap_existing_dataset",
+                    title=image_id,
+                    description=image_id,
+                    width=width,
+                    height=height,
+                    notes="Recovered from existing dataset files.",
+                )
+            )
+
+
 def validate_final_counts(counts: dict[str, int]) -> None:
     missing = {category: target - counts[category] for category, target in TARGET_COUNTS.items() if counts[category] < target}
     if missing:
@@ -883,6 +948,20 @@ def main() -> None:
     counts = defaultdict(int)
     counters = defaultdict(int)
     metadata_rows: list[dict[str, str]] = []
+    bootstrap_existing_dataset(
+        output_dirs=output_dirs,
+        metadata_rows=metadata_rows,
+        counts=counts,
+        counters=counters,
+    )
+    if metadata_rows:
+        persist_metadata(output_dirs["metadata"], metadata_rows)
+        LOGGER.info(
+            "Loaded existing dataset state: shoes=%s, clothing=%s, portable_electronics=%s",
+            counts["shoes"],
+            counts["clothing"],
+            counts["portable_electronics"],
+        )
 
     if args.fashion_manifest:
         copy_manifest_subset(
