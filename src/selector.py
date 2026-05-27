@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import cv2
 import numpy as np
-from PIL import Image
 
 import src.text_processor as tp
 from config import PROXY_WEIGHTS, SELECTOR_WEIGHTS
@@ -15,9 +13,6 @@ from src.dictionaries import CATEGORY_KEYWORDS, EMBEDDING_VECTOR_SIZE, FRENCH_CO
 
 
 MAX_CROPS = 5
-CLIP_INPUT_SIZE = (224, 224)
-
-
 def _load_image(image: str | Path | np.ndarray) -> np.ndarray:
     if isinstance(image, np.ndarray):
         array = image.copy()
@@ -40,12 +35,6 @@ def _cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
         return 0.0
     cosine = float(np.dot(left, right) / (left_norm * right_norm))
     return max(0.0, min(1.0, (cosine + 1.0) / 2.0))
-
-
-def _resize_for_clip(crop_bgr: np.ndarray) -> Image.Image:
-    rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
-    pil_image = Image.fromarray(rgb)
-    return pil_image.resize(CLIP_INPUT_SIZE)
 
 
 def _category_coherence(text_category: str | None, crop_bgr: np.ndarray) -> float:
@@ -131,35 +120,9 @@ def _proxy_clip_score(crop_bgr: np.ndarray, text_data: dict[str, Any], area: flo
     }
 
 
-@lru_cache(maxsize=1)
-def _clip_image_encoder_ready() -> bool:
-    model = tp._load_embedding_model()
-    return tp._embed_backend == "clip" and model is not None
-
-
 def _encode_crop_embedding(crop_bgr: np.ndarray) -> np.ndarray:
-    if not _clip_image_encoder_ready():
-        return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
-
-    model = tp._load_embedding_model()
-    if model is None:
-        return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
-
-    try:
-        pil_image = _resize_for_clip(crop_bgr)
-        vector = model.encode([pil_image], convert_to_numpy=True, normalize_embeddings=True)
-    except Exception:
-        return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
-
-    array = np.asarray(vector, dtype=np.float32).reshape(-1)
-    if array.size == EMBEDDING_VECTOR_SIZE:
-        return array
-    if array.size > EMBEDDING_VECTOR_SIZE:
-        return array[:EMBEDDING_VECTOR_SIZE]
-
-    padded = np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
-    padded[: array.size] = array
-    return padded
+    crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
+    return tp.encode_image_embedding(crop_rgb)
 
 
 def _prepare_candidates(candidate_boxes: list[dict[str, Any]]) -> list[dict[str, Any]]:
