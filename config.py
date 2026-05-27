@@ -2,10 +2,11 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+DATASET_DIR = PROJECT_ROOT / "dataset"
 DATA_DIR = PROJECT_ROOT / "data"
-RAW_IMAGES_DIR = DATA_DIR / "raw_images"
-CLEAN_REFERENCES_DIR = DATA_DIR / "clean_references"
-DEGRADED_DIR = DATA_DIR / "degraded"
+RAW_IMAGES_DIR = DATASET_DIR / "originals"
+CLEAN_REFERENCES_DIR = DATASET_DIR / "clean_references"
+DEGRADED_DIR = DATASET_DIR / "degraded"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 SRC_DIR = PROJECT_ROOT / "src"
 
