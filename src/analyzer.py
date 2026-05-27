@@ -251,13 +251,17 @@ def _effective_resolution_score(gray: np.ndarray) -> dict[str, Any]:
     useful_centrality_score = _linear_score(useful_centrality, 0.38, 0.82)
     edge_density_score = _linear_score(edge_density, 0.025, 0.11)
     score = (
-        0.28 * width_score
-        + 0.28 * height_score
-        + 0.18 * detail_score
-        + 0.16 * useful_area_score
-        + 0.05 * useful_centrality_score
-        + 0.05 * edge_density_score
+        0.24 * width_score
+        + 0.24 * height_score
+        + 0.24 * detail_score
+        + 0.12 * useful_area_score
+        + 0.06 * useful_centrality_score
+        + 0.10 * edge_density_score
     )
+    detail_penalty = max(0.0, thresholds["detail_soft_min"] - detail_ratio) * 900.0
+    edge_penalty = max(0.0, 0.03 - edge_density) * 220.0
+    area_penalty = max(0.0, 0.14 - useful_area) * 110.0
+    score -= detail_penalty + edge_penalty + area_penalty
 
     if width < thresholds["min_width"] or height < thresholds["min_height"]:
         message = "Resolution faible : l'image manque de pixels utiles."
