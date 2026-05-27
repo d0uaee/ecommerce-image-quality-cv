@@ -14,7 +14,7 @@ from src.text_processor import process_text
 
 
 def main() -> None:
-    image_path = Path("data/raw_images/electronics/001_1.jpg")
+    image_path = Path("data/raw_images/portable_electronics/001_1.jpg")
     title = "chargeur portable"
     description = "chargeur portable noir"
 
