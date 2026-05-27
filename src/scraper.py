@@ -36,10 +36,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from config import ALLOWED_CATEGORIES, RAW_IMAGES_DIR  # noqa: E402
+from config import ALLOWED_CATEGORIES, DATASET_DIR, RAW_IMAGES_DIR  # noqa: E402
 
 
-METADATA_CSV = PROJECT_ROOT / "data" / "metadata.csv"
+METADATA_CSV = DATASET_DIR / "metadata.csv"
 TARGET_TOTAL_MIN = 200
 TARGET_TOTAL_MAX = 300
 TARGET_PER_CATEGORY = 80
