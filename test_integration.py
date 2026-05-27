@@ -7,6 +7,7 @@ from pathlib import Path
 
 import cv2
 
+from config import RAW_IMAGES_DIR
 from src.analyzer import analyze
 from src.candidate_region_generator import propose_regions
 from src.selector import select_product
@@ -14,7 +15,10 @@ from src.text_processor import process_text
 
 
 def main() -> None:
-    image_path = Path("data/raw_images/portable_electronics/001_1.jpg")
+    candidates = sorted((RAW_IMAGES_DIR / "portable_electronics").glob("*"))
+    if not candidates:
+        raise FileNotFoundError(f"Aucune image trouvee dans {RAW_IMAGES_DIR / 'portable_electronics'}")
+    image_path = candidates[0]
     title = "chargeur portable"
     description = "chargeur portable noir"
 
