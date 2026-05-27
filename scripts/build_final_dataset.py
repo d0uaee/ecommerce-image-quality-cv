@@ -141,6 +141,13 @@ class QualityDecision:
     height: int
 
 
+def dataset_cache_root() -> Path:
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP") or str(PROJECT_ROOT)
+    root = Path(base) / "ecommerce-image-quality-cache"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build the final zero-shot dataset with shoes, clothing, and portable electronics."
@@ -278,7 +285,7 @@ def _looks_like_kaggle_root(root: Path) -> bool:
 
 
 def _download_with_kaggle_cli() -> Path:
-    cache_root = PROJECT_ROOT / "dataset_cache" / "kaggle_fashion"
+    cache_root = dataset_cache_root() / "kaggle_fashion"
     extract_root = cache_root / "cli_extracted"
     extract_root.mkdir(parents=True, exist_ok=True)
 
@@ -306,7 +313,7 @@ def _download_with_kaggle_cli() -> Path:
 
 
 def _download_with_kaggle_api() -> Path:
-    cache_root = PROJECT_ROOT / "dataset_cache" / "kaggle_fashion"
+    cache_root = dataset_cache_root() / "kaggle_fashion"
     cache_root.mkdir(parents=True, exist_ok=True)
 
     if _looks_like_kaggle_root(cache_root):
