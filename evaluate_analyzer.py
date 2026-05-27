@@ -7,11 +7,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from config import DATA_DIR, DEGRADED_DIR, OUTPUT_DIR
+from config import OUTPUT_DIR
 from src.analyzer import analyze
 
 
-DEGRADED_METADATA_CSV = DATA_DIR / "degraded_metadata.csv"
+PRIMARY_DATASET_DIR = Path("dataset")
+LEGACY_DATA_DIR = Path("data")
 SENSITIVITY_OUTPUT_CSV = OUTPUT_DIR / "reports" / "analyzer_sensitivity.csv"
 FULL_MATRIX_OUTPUT_CSV = OUTPUT_DIR / "reports" / "analyzer_sensitivity_full_matrix.csv"
 
@@ -33,13 +34,30 @@ NEUTRAL_TEXT_DATA = {
 }
 
 
+def resolve_data_root() -> Path:
+    if PRIMARY_DATASET_DIR.exists() and (PRIMARY_DATASET_DIR / "originals").exists():
+        return PRIMARY_DATASET_DIR
+    return LEGACY_DATA_DIR
+
+
+def resolve_originals_dir(data_root: Path) -> Path:
+    primary = data_root / "originals"
+    if primary.exists():
+        return primary
+    return data_root / "raw_images"
+
+
 def load_degraded_rows() -> list[dict[str, str]]:
-    if DEGRADED_METADATA_CSV.exists():
-        with open(DEGRADED_METADATA_CSV, newline="", encoding="utf-8") as handle:
+    data_root = resolve_data_root()
+    degraded_metadata_csv = data_root / "degraded_metadata.csv"
+    degraded_dir = data_root / "degraded"
+
+    if degraded_metadata_csv.exists():
+        with degraded_metadata_csv.open(newline="", encoding="utf-8") as handle:
             return list(csv.DictReader(handle))
 
     rows: list[dict[str, str]] = []
-    for path in DEGRADED_DIR.rglob("*.jpg"):
+    for path in degraded_dir.rglob("*.jpg"):
         stem_parts = path.stem.split("_")
         if len(stem_parts) < 3:
             continue
@@ -47,7 +65,7 @@ def load_degraded_rows() -> list[dict[str, str]]:
         degradation = "_".join(stem_parts[1:-1])
         rows.append(
             {
-                "image": str(path.relative_to(DATA_DIR)),
+                "image": str(path.relative_to(data_root)),
                 "source": "",
                 "type_degradation": degradation,
                 "niveau": level,
@@ -57,20 +75,22 @@ def load_degraded_rows() -> list[dict[str, str]]:
 
 
 def resolve_source_path(row: dict[str, str]) -> Path | None:
+    data_root = resolve_data_root()
+    originals_dir = resolve_originals_dir(data_root)
+
     source_value = row.get("source", "").strip()
     if source_value:
-        source_path = DATA_DIR / source_value
+        source_path = data_root / source_value
         if source_path.exists():
             return source_path
 
     image_value = row.get("image", "").strip()
-    image_path = DATA_DIR / image_value
     image_name = Path(image_value).name
     source_id = image_name.split("_")[0]
     if not source_id:
         return None
 
-    for candidate in (DATA_DIR / "raw_images").rglob(f"{source_id}_*"):
+    for candidate in originals_dir.rglob(f"{source_id}_*"):
         if candidate.is_file():
             return candidate
     return None
@@ -84,17 +104,18 @@ def analyze_scores(image_path: Path) -> dict[str, float]:
 
 
 def build_measurements() -> pd.DataFrame:
+    data_root = resolve_data_root()
     rows = load_degraded_rows()
     if not rows:
         raise FileNotFoundError(
-            "Aucune donnée dégradée trouvée. Génère d'abord data/degraded/ et data/degraded_metadata.csv."
+            "Aucune donnee degradee trouvee. Genere d'abord dataset/degraded/ ou data/degraded/ et leur metadata."
         )
 
     cache: dict[Path, dict[str, float]] = {}
     measurements: list[dict[str, Any]] = []
 
     for row in rows:
-        degraded_path = DATA_DIR / row["image"]
+        degraded_path = data_root / row["image"]
         if not degraded_path.exists():
             continue
 
@@ -116,8 +137,8 @@ def build_measurements() -> pd.DataFrame:
             degraded_score = degraded_scores[criterion_name]
             measurements.append(
                 {
-                    "source": str(source_path.relative_to(DATA_DIR)),
-                    "degraded_image": str(degraded_path.relative_to(DATA_DIR)),
+                    "source": str(source_path.relative_to(data_root)),
+                    "degraded_image": str(degraded_path.relative_to(data_root)),
                     "type_degradation": degradation,
                     "niveau": row.get("niveau", ""),
                     "criterion": criterion_name,
@@ -132,7 +153,7 @@ def build_measurements() -> pd.DataFrame:
 
     frame = pd.DataFrame(measurements)
     if frame.empty:
-        raise RuntimeError("Impossible de construire les mesures. Vérifie les chemins source/dégradés.")
+        raise RuntimeError("Impossible de construire les mesures. Verifie les chemins source/degrades.")
     return frame
 
 

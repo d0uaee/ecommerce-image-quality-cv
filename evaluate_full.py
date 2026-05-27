@@ -7,9 +7,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from config import DATA_DIR, OUTPUT_DIR, RAW_IMAGES_DIR
+from config import OUTPUT_DIR
 from evaluate_analyzer import (
     build_measurements,
+    resolve_data_root,
+    resolve_originals_dir,
     summarize_full_matrix,
     summarize_target_sensitivity,
 )
@@ -34,15 +36,16 @@ NEUTRAL_TEXT_DATA = {
 
 
 def list_raw_images() -> list[Path]:
+    originals_dir = resolve_originals_dir(resolve_data_root())
     return sorted(
         path
-        for path in RAW_IMAGES_DIR.rglob("*")
+        for path in originals_dir.rglob("*")
         if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
     )
 
 
 def list_degraded_images() -> list[Path]:
-    degraded_dir = DATA_DIR / "degraded"
+    degraded_dir = resolve_data_root() / "degraded"
     return sorted(
         path
         for path in degraded_dir.rglob("*")
@@ -90,12 +93,13 @@ def select_evaluation_images(limit: int = 50) -> list[dict[str, Any]]:
 
 def build_human_template(limit: int = 50) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
+    cwd = Path.cwd()
     for item in select_evaluation_images(limit):
         image_path = item["image_path"]
         analysis = analyze(image_path, text_data=NEUTRAL_TEXT_DATA)
         rows.append(
             {
-                "image": str(image_path.relative_to(Path.cwd())),
+                "image": str(image_path.relative_to(cwd)),
                 "source_type": item["source_type"],
                 "score_auto": round(float(analysis["global_score"]) / 100.0, 4),
                 "score_humain": "",
@@ -116,7 +120,7 @@ def compute_spearman(template_frame: pd.DataFrame) -> dict[str, Any]:
     if len(labeled) < 3:
         return {
             "status": "pending",
-            "message": "Corrélation Spearman non calculée : au moins 3 scores humains sont nécessaires.",
+            "message": "Correlation Spearman non calculee : au moins 3 scores humains sont necessaires.",
             "n_labeled": int(len(labeled)),
             "spearman_rho": None,
             "p_value": None,
@@ -136,7 +140,7 @@ def compute_spearman(template_frame: pd.DataFrame) -> dict[str, Any]:
     rho, p_value = spearmanr(labeled["score_auto"], labeled["score_humain"])
     return {
         "status": "ok",
-        "message": "Corrélation calculée avec succès.",
+        "message": "Correlation calculee avec succes.",
         "n_labeled": int(len(labeled)),
         "spearman_rho": None if pd.isna(rho) else float(rho),
         "p_value": None if pd.isna(p_value) else float(p_value),
@@ -151,14 +155,14 @@ def build_spearman_plot(template_frame: pd.DataFrame) -> str:
     try:
         import matplotlib.pyplot as plt
     except Exception as exc:
-        return f"Graphe non généré: matplotlib indisponible ({exc})."
+        return f"Graphe non genere: matplotlib indisponible ({exc})."
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(7, 5))
     if len(labeled) >= 3:
         ax.scatter(labeled["score_humain"], labeled["score_auto"], c="#1f77b4", alpha=0.8)
-        ax.set_title("Corrélation Spearman : score humain vs score automatique")
+        ax.set_title("Correlation Spearman : score humain vs score automatique")
     else:
         ax.text(
             0.5,
@@ -171,14 +175,14 @@ def build_spearman_plot(template_frame: pd.DataFrame) -> str:
         ax.set_title("Graphe en attente d'annotations humaines")
 
     ax.set_xlabel("Score humain (1 / 0.5 / 0)")
-    ax.set_ylabel("Score automatique normalisé")
+    ax.set_ylabel("Score automatique normalise")
     ax.set_xlim(-0.05, 1.05)
     ax.set_ylim(-0.05, 1.05)
     ax.grid(alpha=0.25)
     fig.tight_layout()
     fig.savefig(SPEARMAN_PLOT_PATH, dpi=160)
     plt.close(fig)
-    return f"Graphe sauvegardé dans {SPEARMAN_PLOT_PATH}"
+    return f"Graphe sauvegarde dans {SPEARMAN_PLOT_PATH}"
 
 
 def build_sensitivity_section() -> dict[str, Any]:
@@ -187,7 +191,7 @@ def build_sensitivity_section() -> dict[str, Any]:
     except Exception as exc:
         return {
             "status": "pending",
-            "message": f"Sensibilité non calculée: {exc}",
+            "message": f"Sensibilite non calculee: {exc}",
             "target_summary": pd.DataFrame(),
             "full_matrix": pd.DataFrame(),
         }
@@ -199,7 +203,7 @@ def build_sensitivity_section() -> dict[str, Any]:
     full_matrix.to_csv(SENSITIVITY_MATRIX_CSV, index=False, encoding="utf-8")
     return {
         "status": "ok",
-        "message": "Sensibilité par critère calculée avec succès.",
+        "message": "Sensibilite par critere calculee avec succes.",
         "target_summary": target_summary,
         "full_matrix": full_matrix,
     }
@@ -213,15 +217,15 @@ def write_consolidated_report(
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []
-    lines.append("# Rapport d'évaluation consolidé")
+    lines.append("# Rapport d'evaluation consolide")
     lines.append("")
-    lines.append("## 1. Échantillon pour évaluation humaine")
+    lines.append("## 1. Echantillon pour evaluation humaine")
     lines.append("")
     lines.append(f"- Nombre d'images dans le template : {len(template_frame)}")
     lines.append(f"- CSV template : `{HUMAN_TEMPLATE_CSV}`")
-    lines.append("- Colonne `score_humain` à remplir avec `1`, `0.5` ou `0`.")
+    lines.append("- Colonne `score_humain` a remplir avec `1`, `0.5` ou `0`.")
     lines.append("")
-    lines.append("## 2. Corrélation Spearman")
+    lines.append("## 2. Correlation Spearman")
     lines.append("")
     lines.append(f"- Statut : {spearman_info['status']}")
     lines.append(f"- Message : {spearman_info['message']}")
@@ -232,13 +236,13 @@ def write_consolidated_report(
         lines.append(f"- p-value : {spearman_info['p_value']:.6f}")
     lines.append(f"- Graphe : `{SPEARMAN_PLOT_PATH}`")
     lines.append("")
-    lines.append("## 3. Sensibilité par critère")
+    lines.append("## 3. Sensibilite par critere")
     lines.append("")
     lines.append(f"- Statut : {sensitivity_info['status']}")
     lines.append(f"- Message : {sensitivity_info['message']}")
     if sensitivity_info["status"] == "ok":
         lines.append(f"- CSV cible : `{SENSITIVITY_TARGET_CSV}`")
-        lines.append(f"- CSV matrice complète : `{SENSITIVITY_MATRIX_CSV}`")
+        lines.append(f"- CSV matrice complete : `{SENSITIVITY_MATRIX_CSV}`")
         lines.append("")
         lines.append("### Tableau cible")
         lines.append("")
@@ -257,9 +261,9 @@ def main() -> None:
 
     print(f"Template humain: {HUMAN_TEMPLATE_CSV}")
     print(plot_message)
-    print(f"Rapport consolidé: {CONSOLIDATED_REPORT_MD}")
+    print(f"Rapport consolide: {CONSOLIDATED_REPORT_MD}")
     print(f"Spearman status: {spearman_info['status']}")
-    print(f"Sensibilité status: {sensitivity_info['status']}")
+    print(f"Sensibilite status: {sensitivity_info['status']}")
 
 
 if __name__ == "__main__":
