@@ -102,32 +102,8 @@ def _closest_color_name(image_bgr: np.ndarray) -> str | None:
 
 
 def _encode_image_embedding(image_bgr: np.ndarray) -> np.ndarray:
-    model = tp._load_embedding_model()
-    if tp._embed_backend != "clip" or model is None:
-        return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
-
-    try:
-        from PIL import Image
-    except Exception:
-        return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
-
     rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    pil_image = Image.fromarray(rgb).resize((224, 224))
-
-    try:
-        vector = model.encode([pil_image], convert_to_numpy=True, normalize_embeddings=True)
-    except Exception:
-        return np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
-
-    array = np.asarray(vector, dtype=np.float32).reshape(-1)
-    if array.size == EMBEDDING_VECTOR_SIZE:
-        return array
-    if array.size > EMBEDDING_VECTOR_SIZE:
-        return array[:EMBEDDING_VECTOR_SIZE]
-
-    padded = np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
-    padded[: array.size] = array
-    return padded
+    return tp.encode_image_embedding(rgb)
 
 
 def _sharpness_score(gray: np.ndarray) -> dict[str, Any]:
