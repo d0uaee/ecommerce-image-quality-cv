@@ -7,5 +7,6 @@ __pycache__/
 .venv/
 node_modules/
 output/
+dataset_cache/
 batch_rerun.log
 data/batch_results.csv
