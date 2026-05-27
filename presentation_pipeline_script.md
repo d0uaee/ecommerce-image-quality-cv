@@ -1,246 +1,313 @@
-# Script de presentation - Version mise a jour (avancement + logique)
+# Script de presentation - Version alignee avec le pipeline zero-shot
 
-## 1) Ouverture (30 sec)
+## 1) Ouverture
 
-Bonjour, aujourd'hui je vais presenter surtout deux choses:
-- l'etat d'avancement reel du projet,
-- et la logique technique utilisee pour construire le pipeline.
+Bonjour,
 
-Le projet vise un systeme d'analyse de qualite d'images produit e-commerce, interpretable et evolutif.
+dans cette presentation, je vais montrer un systeme zero-shot qui evalue automatiquement
+la qualite d'une photo produit e-commerce et qui donne un score avec des conseils
+d'amelioration en francais et en darija.
 
-Message cle de cette version:
-on a deja une base executable, et on sait exactement comment passer au niveau PFE complet.
+Le point central de ce projet est important :
 
----
-
-## 2) Etat d'avancement global (45 sec)
-
-Nous avons defini un pipeline de 8 etapes.
-
-Etat actuel:
-- 2 etapes finalisees,
-- 3 etapes partiellement implementees,
-- 3 etapes planifiees (bonus inclus).
-
-En pourcentage, nous sommes environ a 40% d'avancement fonctionnel.
-
-Point important:
-la faisabilite est deja validee par un prototype operationnel (interface + analyse + batch CSV).
-
-Lecture simple de l'avancement:
-- Bloc "fonctionnel minimum" : valide
-- Bloc "intelligence avancee" : en construction
-- Bloc "valeur business" : planifie
+- je n'entraine aucun modele dans ce depot
+- j'utilise des modeles pre-entraines et des mesures deterministes
+- l'innovation se situe dans l'architecture multimodale et dans l'explicabilite
 
 ---
 
-## 3) Logique de conception (message cle) (1 min)
+## 2) Probleme vise
 
-La logique utilisee est incrementale et hybride:
+De nombreux petits vendeurs publient des photos produits de qualite inegale.
 
-1. D'abord une base CV classique interpretable:
-- pour obtenir des scores explicables rapidement,
-- et eviter une boite noire des le debut.
+Les problemes les plus frequents sont :
 
-2. Ensuite un enrichissement IA/NLP:
-- OCR + prompt intelligent pour mieux detecter le produit principal,
-- CNN pour capter la perception visuelle globale.
+- photo floue
+- exposition incorrecte
+- contraste faible
+- resolution insuffisante
+- mauvais cadrage
+- manque de coherence entre l'image et le texte de l'annonce
 
-3. Enfin une couche de valeur metier:
-- fusion des signaux,
-- recommandations actionnables,
-- et bonus business (similaires, prix, popularite).
+L'objectif est donc de fournir un systeme simple qui repond a trois questions :
 
-Donc, on avance de "robuste et explicable" vers "intelligent et complet".
-
-Cette logique nous permet de reduire le risque:
-- on valide d'abord ce qui marche,
-- puis on ajoute la complexite seulement quand la base est stable.
+1. la photo est-elle bonne ou non pour une fiche e-commerce ?
+2. pourquoi ?
+3. que faut-il corriger concretement ?
 
 ---
 
-## 4) Avancement par etape du pipeline (2 min)
+## 3) Hypothese scientifique
 
-### [1] Pretraitement - EN COURS
+L'hypothese de travail est la suivante :
 
-Ce qui existe:
-- redimensionnement et normalisation de base.
+le texte de l'annonce (`titre + description`) est la source de verite principale,
+et CLIP peut servir a verifier si l'image correspond bien au produit decrit.
 
-Pourquoi cette etape:
-- stabiliser les mesures,
-- reduire l'impact des differences de source.
+Cette logique permet d'eviter de faire reposer le systeme sur l'OCR.
 
-Ce qui reste:
-- harmoniser contraste/couleurs sur dataset multi-sources.
+Donc :
 
-Indicateur avancement estime: 35%
-
-### [2] Detection produit - PARTIELLEMENT FAIT
-
-Ce qui existe:
-- detection objet principal dans le flux actuel.
-
-Logique technique:
-- detection de base d'abord,
-- puis ajout OCR -> mots-cles -> prompt intelligent pour Grounding DINO.
-
-Ce qui reste:
-- brancher OCR et strategie fallback "main product" robuste.
-
-Indicateur avancement estime: 55%
-
-### [3] Raffinement masque (GrabCut) - FAIT
-
-Ce qui existe:
-- bbox + GrabCut + nettoyage.
-
-Pourquoi:
-- isoler correctement le produit,
-- fiabiliser les calculs qualite en aval.
-
-Indicateur avancement estime: 70%
-
-### [4] Analyse qualite CV - FAIT
-
-Ce qui existe:
-- blur, luminosite, fond blanc, centrage, ratio produit, watermark.
-
-Pourquoi:
-- obtenir des indicateurs explicables pour l'utilisateur et le jury.
-
-Resultat:
-- score par critere + score global intermediaire + recommandations de base.
-
-Indicateur avancement estime: 75%
-
-### [5] CNN qualite globale - A FAIRE
-
-Logique:
-- le CV classique mesure des regles techniques,
-- le CNN capte la qualite percue globalement.
-
-Ce qui reste:
-- preparer dataset labelise,
-- entrainer une classification good/medium/bad.
-
-Indicateur avancement estime: 10%
-
-### [6] Fusion + explication - EN CONCEPTION
-
-Logique:
-- combiner score CV + score CNN,
-- produire une decision unique mais justifiee.
-
-Sortie cible:
-- score final,
-- causes principales,
-- recommandations priorisees.
-
-Indicateur avancement estime: 20%
-
-### [7] Produits similaires (bonus) - PLANIFIE
-
-Logique:
-- embeddings CLIP + nearest neighbors pour proposer des visuels proches.
-
-Indicateur avancement estime: 15%
-
-### [8] Infos externes (bonus) - PLANIFIE
-
-Logique:
-- enrichir l'analyse image par un contexte business (prix, tendance, popularite).
-
-Indicateur avancement estime: 5%
+- pas d'OCR dans le chemin critique
+- pas d'entrainement de reseau specifique
+- zero-shot + heuristiques explicables
 
 ---
 
-## 5) Ce qui a ete mis a jour recemment (30-40 sec)
+## 4) Scope volontairement reduit
 
-Depuis la version precedente, nous avons clarifie:
-- la separation entre ce qui est termine, en cours, et planifie,
-- les priorites techniques par sprint,
-- et la logique de fusion CV + CNN pour l'explicabilite finale.
+Pour rester realiste dans une contrainte de deux mois, le projet est limite a trois familles :
 
-Donc la presentation n'est pas seulement une liste d'idees:
-elle montre une trajectoire de realisation concrete.
+- chaussures
+- vetements
+- electronique portable
 
----
+Ce choix est volontaire.
 
-## 6) Ce qui prouve l'avancement aujourd'hui (45 sec)
+On evite pour l'instant :
 
-Elements deja demonstrables:
-- application Streamlit fonctionnelle,
-- analyse d'une image en temps reel,
-- analyse par lot d'un dossier,
-- export des resultats en CSV,
-- affichage de scores et recommandations.
-
-Donc, on ne presente pas une idee theorique: on presente un systeme deja executable.
+- meubles
+- bijoux
+- produits transparents
+- cosmetiques
+- alimentaire
 
 ---
 
-## 7) Risques techniques et logique de maitrise (45 sec)
+## 5) Pipeline actuel
 
-Risque 1: variabilite des images
-- reponse: pretraitement + collecte multi-sources.
+Le pipeline reel du projet est le suivant :
 
-Risque 2: mauvaise detection sur cas limites
-- reponse: OCR + prompt intelligent + fallback.
+```text
+annonce (image + titre + description)
+ -> text_processor
+ -> candidate_region_generator
+ -> selector
+ -> analyzer
+ -> score global
+ -> recommandations FR / Darija
+ -> app Streamlit
+```
 
-Risque 3: manque d'interpretabilite si on fait seulement du deep learning
-- reponse: architecture hybride CV explicable + CNN.
-
-Risque 4: faible valeur business
-- reponse: couche recommandations + bonus similaires + infos externes.
-
----
-
-## 8) Plan de finalisation (roadmap courte) (1 min)
-
-Sprint 1:
-- finaliser collecte/annotation multi-sources,
-- consolider pretraitement.
-
-Sprint 2:
-- integration OCR + generation prompt intelligent,
-- benchmark detection.
-
-Sprint 3:
-- entrainement CNN qualite,
-- module de fusion explicable.
-
-Sprint 4:
-- bonus recommandation,
-- bonus infos externes,
-- evaluation finale et redaction resultats.
-
-Resultat attendu en fin de roadmap:
-- pipeline complet executable,
-- evaluation quantitative par module,
-- demo finale orientee usage e-commerce.
+Je peux maintenant expliquer chaque bloc.
 
 ---
 
-## 9) Conclusion orientee avancement (30 sec)
+## 6) Bloc 1 - Text processor
 
-En resume:
-- l'avancement actuel valide deja la base technique,
-- la logique de developpement est claire: robuste -> intelligent -> business,
-- et la suite est planifiee avec des livrables precis.
+Le premier module traite le texte de l'annonce.
 
-Le projet est donc sur une trajectoire realiste vers une version PFE complete.
+Il fait trois choses :
+
+- nettoyage du texte
+- extraction simple de categorie, couleur et marque
+- generation d'un embedding texte CLIP
+
+Ce bloc est crucial, parce qu'il fournit la verite metier au reste du pipeline.
+
+Autrement dit :
+on ne devine pas le produit depuis l'image seule, on guide l'analyse par le texte fourni.
+
+---
+
+## 7) Bloc 2 - Candidate region generator
+
+Le deuxieme module ne fait pas de detection supervisee classique.
+
+Il propose plusieurs regions candidates possibles dans l'image.
+
+Pourquoi ce choix ?
+
+- c'est plus rigoureux scientifiquement pour un systeme zero-shot
+- c'est plus leger qu'un detecteur pleinement supervise
+- cela reste interpretable
+
+Par defaut, on utilise :
+
+- la saliency OpenCV
+- ou un fallback par contours / seuillage adaptatif
+
+Et un filet de securite existe :
+
+- Grounding DINO
+- deja code
+- desactive par defaut
+
+---
+
+## 8) Bloc 3 - Selector
+
+Le selector choisit le bon produit parmi les regions candidates.
+
+Pour chaque crop candidat, on calcule :
+
+- un score CLIP image/texte
+- un score visuel base sur taille et centralite
+- une coherence categorie simple
+
+La formule est :
+
+```text
+score = 0.6 * CLIP + 0.25 * visuel + 0.15 * categorie
+```
+
+Le choix est explicable :
+
+- CLIP reste le signal principal
+- le visuel aide a privilegier une vraie zone produit
+- la categorie sert de garde-fou leger
+
+Ce bloc produit aussi des valeurs intermediaires, utiles pour l'explication.
+
+---
+
+## 9) Bloc 4 - Analyzer
+
+Une fois le bon crop selectionne, on evalue sa qualite.
+
+Les criteres actuels sont :
+
+- nettete
+- exposition
+- contraste
+- balance couleurs
+- resolution effective
+- coherence image / texte
+
+Quelques exemples :
+
+- la nettete est calculee via la variance du Laplacien
+- l'exposition repose sur des statistiques d'histogramme
+- la coherence combine CLIP et comparaison de couleur dominante
+
+La couleur est volontairement un signal leger, pas un critere dominant.
+
+---
+
+## 10) Explicabilite
+
+Le point fort du projet n'est pas seulement de sortir une note.
+
+Le systeme montre :
+
+- le crop reellement selectionne
+- les sous-scores qualite
+- le score de coherence image / texte
+- des recommandations actionnables
+
+Donc, on n'a pas une boite noire.
+
+On peut expliquer au vendeur :
+
+- quelle zone a ete analysee
+- quel critere penalise la photo
+- et quelle correction faire
+
+---
+
+## 11) Donnees et validation
+
+La logique dataset est egalement importante.
+
+Les bonnes images viennent de references e-commerce propres.
+
+Les mauvaises images ne sont pas scrappees comme "mauvaises photos reelles".
+Elles sont generees par degradations controlees :
+
+- flou
+- sous-exposition
+- surexposition
+- mauvais recadrage
+- basse resolution
+- compression JPEG
+
+L'avantage est fort :
+
+- la verite-terrain est connue
+- on sait quel critere devrait baisser
+- cela renforce la validite experimentale du rapport
+
+---
+
+## 12) Ce qui est deja fonctionnel
+
+Aujourd'hui, le projet dispose deja de :
+
+- un `text_processor` executable
+- un generateur de regions candidates
+- un selector branche sur CLIP
+- un analyzer avec score global
+- une app Streamlit
+- des scripts d'evaluation
+
+Donc le projet n'est pas theorique :
+il existe deja comme pipeline executable de bout en bout.
+
+---
+
+## 13) Limites actuelles
+
+Il y a cependant des limites assumees :
+
+- le dataset versionne actuellement contient encore des references historiques a nettoyer
+- certaines images historiques sont en basse resolution
+- le fallback DINO existe mais n'est pas active par defaut
+- le systeme est optimise pour trois familles de produits seulement
+
+Ces limites sont acceptables dans le cadre d'un PFE de deux mois, a condition de bien les expliciter.
+
+---
+
+## 14) Message scientifique final
+
+Le message important pour le jury est le suivant :
+
+ce projet n'essaie pas d'inventer un nouveau modele de deep learning.
+
+Il propose une architecture zero-shot multimodale explicable qui combine :
+
+- NLP
+- vision classique
+- CLIP
+- scoring interpretable
+- heuristiques qualite
+
+La contribution principale est donc architecturale et experimentale.
+
+---
+
+## 15) Conclusion
+
+En conclusion :
+
+- le texte de l'annonce guide l'analyse
+- la region produit est selectionnee de facon explicable
+- la qualite est mesuree par criteres interpretabless
+- le systeme fournit des conseils utiles au vendeur
+
+Le projet est donc realiste, defendable scientifiquement, et coherent avec une contrainte PFE.
 
 Merci.
 
 ---
 
-## 10) Q/R du jury (version courte)
+## 16) Reponses courtes au jury
 
-Q1. Pourquoi ne pas faire seulement du deep learning?
-Reponse: nous voulons un systeme interpretable et fiable rapidement; le CV classique donne cette base, puis le CNN complete.
+### Pourquoi zero-shot ?
 
-Q2. Comment justifier l'etat d'avancement?
-Reponse: prototype deja executable, analyse single + batch + export; il reste surtout la couche intelligence avancee.
+Parce que la contrainte temps est courte, et que l'objectif est de produire un systeme
+exploitable sans phase d'entrainement lourde.
 
-Q3. Quelle est la logique scientifique?
-Reponse: pipeline modulaire, evaluation par etape, fusion de signaux heterogenes, puis validation experimentale.
+### Pourquoi le texte est-il central ?
+
+Parce qu'il est deja disponible dans l'annonce et constitue la meilleure verite metier
+pour verifier la coherence image / produit.
+
+### Pourquoi pas d'OCR central ?
+
+Parce que l'OCR serait fragile, non necessaire dans la plupart des cas, et contraire
+a la logique principale du projet qui prend le texte annonce comme reference.
+
+### Quelle est la vraie innovation ?
+
+L'architecture multimodale zero-shot et l'explicabilite du pipeline.
