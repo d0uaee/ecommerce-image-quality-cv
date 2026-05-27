@@ -1,19 +1,27 @@
-#!/usr/bin/env python
-"""Quick test of analyzer with text prompt"""
-import sys
-from src.analyzer import analyze_image, global_score
+#!/usr/bin/env python3
+"""Smoke test du critere de coherence avec text_data."""
 
-# Test with electronics image and text prompt
-result = analyze_image('data/raw_images/electronics/001_1.jpg', text_prompt='smartphone')
-criteria = result['criteria']
+from __future__ import annotations
 
-print(f"\nAnalyzing: data/raw_images/electronics/001_1.jpg")
-print(f"Text prompt: 'smartphone'")
-print(f"\n{'Criterion':<20} {'Score':>6}  {'Value':>10}  Message")
-print("-" * 65)
-for name, data in criteria.items():
-    print(f"{name:<20} {data['score']:>6.3f}  {str(data['value']):>10}  {data['message']}")
+from pathlib import Path
 
-score = global_score(criteria)
-print("-" * 65)
-print(f"{'GLOBAL SCORE':<20} {score:>6.3f}")
+from src.analyzer import analyze
+from src.text_processor import process_text
+
+
+def main() -> None:
+    image_path = Path("data/raw_images/portable_electronics/001_1.jpg")
+    text_data = process_text("chargeur portable", "chargeur portable noir")
+
+    result = analyze(image_path, text_data=text_data)
+    coherence = result["criteria"]["coherence"]
+
+    print(f"Image: {image_path}")
+    print(f"Score global: {result['global_score']}")
+    print(f"Score coherence: {coherence['score']}")
+    print("Detail coherence:")
+    print(coherence["raw_value"])
+
+
+if __name__ == "__main__":
+    main()
