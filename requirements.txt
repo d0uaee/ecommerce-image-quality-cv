@@ -1,5 +1,9 @@
 beautifulsoup4
+datasets
 huggingface-hub
+kaggle
+kagglehub
+kagglesdk
 matplotlib
 numpy
 opencv-contrib-python
