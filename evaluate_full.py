@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from config import DATA_DIR, OUTPUT_DIR, RAW_IMAGES_DIR
@@ -22,6 +23,14 @@ SPEARMAN_PLOT_PATH = REPORT_DIR / "spearman_correlation.png"
 SENSITIVITY_TARGET_CSV = REPORT_DIR / "full_eval_sensitivity_target.csv"
 SENSITIVITY_MATRIX_CSV = REPORT_DIR / "full_eval_sensitivity_matrix.csv"
 CONSOLIDATED_REPORT_MD = REPORT_DIR / "evaluation_report.md"
+
+NEUTRAL_TEXT_DATA = {
+    "text_embedding": np.zeros(512, dtype=np.float32),
+    "color": None,
+    "category": None,
+    "brand": None,
+    "clean_text": "",
+}
 
 
 def list_raw_images() -> list[Path]:
@@ -83,7 +92,7 @@ def build_human_template(limit: int = 50) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for item in select_evaluation_images(limit):
         image_path = item["image_path"]
-        analysis = analyze(image_path)
+        analysis = analyze(image_path, text_data=NEUTRAL_TEXT_DATA)
         rows.append(
             {
                 "image": str(image_path.relative_to(Path.cwd())),

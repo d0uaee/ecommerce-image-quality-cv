@@ -4,6 +4,7 @@ import csv
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from config import DATA_DIR, DEGRADED_DIR, OUTPUT_DIR
@@ -21,6 +22,14 @@ PRIMARY_CRITERION_BY_DEGRADATION = {
     "lowres": "effective_resolution",
     "jpeg": "sharpness",
     "bad_crop": "effective_resolution",
+}
+
+NEUTRAL_TEXT_DATA = {
+    "text_embedding": np.zeros(512, dtype=np.float32),
+    "color": None,
+    "category": None,
+    "brand": None,
+    "clean_text": "",
 }
 
 
@@ -68,7 +77,7 @@ def resolve_source_path(row: dict[str, str]) -> Path | None:
 
 
 def analyze_scores(image_path: Path) -> dict[str, float]:
-    result = analyze(image_path)
+    result = analyze(image_path, text_data=NEUTRAL_TEXT_DATA)
     scores = {name: payload["score"] for name, payload in result["criteria"].items()}
     scores["global_score"] = result["global_score"]
     return scores
