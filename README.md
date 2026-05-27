@@ -60,22 +60,22 @@ annonce (image + titre + description)
 
 ```text
 ecommerce-image-quality/
-├── app.py
-├── config.py
-├── requirements.txt
-├── README.md
-├── DOCUMENTATION.md
-├── data/
-│   ├── raw_images/
-│   ├── clean_references/
-│   ├── degraded/
-│   └── metadata.csv
-└── src/
-    ├── text_processor.py
-    ├── candidate_region_generator.py
-    ├── selector.py
-    ├── analyzer.py
-    └── dictionaries.py
+|- app.py
+|- config.py
+|- requirements.txt
+|- README.md
+|- DOCUMENTATION.md
+|- data/
+|  |- raw_images/
+|  |- clean_references/
+|  |- degraded/
+|  `- metadata.csv
+`- src/
+   |- text_processor.py
+   |- candidate_region_generator.py
+   |- selector.py
+   |- analyzer.py
+   `- dictionaries.py
 ```
 
 ## Dependances principales
@@ -140,7 +140,7 @@ historiques qui ne sont pas completement alignees avec la spec finale du PFE.
 
 Exemples de points encore en transition :
 
-- `data/metadata.csv` utilise encore un ancien schema versionne
+- `data/metadata.csv` a deja le bon schema, mais son contenu reste encore historique
 - certaines images de `data/raw_images/` sont en basse resolution historique
 - certains supports de soutenance doivent encore etre realignes avec la version finale
 
