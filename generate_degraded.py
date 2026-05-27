@@ -6,10 +6,12 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from config import DEGRADED_DIR, RAW_IMAGES_DIR
-
-
-DEGRADED_METADATA_CSV = RAW_IMAGES_DIR.parent / "degraded_metadata.csv"
+DATASET_ROOT = Path("dataset")
+LEGACY_DATA_ROOT = Path("data")
+PRIMARY_RAW_IMAGES_DIR = DATASET_ROOT / "originals"
+PRIMARY_DEGRADED_DIR = DATASET_ROOT / "degraded"
+LEGACY_RAW_IMAGES_DIR = LEGACY_DATA_ROOT / "raw_images"
+LEGACY_DEGRADED_DIR = LEGACY_DATA_ROOT / "degraded"
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 BLUR_LEVELS = {
@@ -49,10 +51,24 @@ JPEG_LEVELS = {
 }
 
 
-def iter_source_images() -> list[Path]:
+def resolve_paths() -> tuple[Path, Path, Path]:
+    if PRIMARY_RAW_IMAGES_DIR.exists():
+        return (
+            PRIMARY_RAW_IMAGES_DIR,
+            PRIMARY_DEGRADED_DIR,
+            DATASET_ROOT / "degraded_metadata.csv",
+        )
+    return (
+        LEGACY_RAW_IMAGES_DIR,
+        LEGACY_DEGRADED_DIR,
+        LEGACY_DATA_ROOT / "degraded_metadata.csv",
+    )
+
+
+def iter_source_images(raw_images_dir: Path) -> list[Path]:
     return sorted(
         path
-        for path in RAW_IMAGES_DIR.rglob("*")
+        for path in raw_images_dir.rglob("*")
         if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
     )
 
@@ -105,14 +121,14 @@ def apply_jpeg_compression(image: np.ndarray, quality: int) -> np.ndarray:
     return decoded if decoded is not None else image
 
 
-def output_path(source_path: Path, index: int, degradation: str, level: str) -> Path:
+def output_path(degraded_dir: Path, source_path: Path, index: int, degradation: str, level: str) -> Path:
     category = source_path.parent.name
     filename = f"{index:03d}_{degradation}_{level}.jpg"
-    return DEGRADED_DIR / category / filename
+    return degraded_dir / category / filename
 
 
-def write_metadata(rows: list[dict[str, str]]) -> None:
-    with open(DEGRADED_METADATA_CSV, "w", newline="", encoding="utf-8") as handle:
+def write_metadata(metadata_csv: Path, rows: list[dict[str, str]]) -> None:
+    with open(metadata_csv, "w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle,
             fieldnames=["image", "source", "type_degradation", "niveau"],
@@ -122,9 +138,10 @@ def write_metadata(rows: list[dict[str, str]]) -> None:
 
 
 def main() -> None:
-    source_images = iter_source_images()
+    raw_images_dir, degraded_dir, degraded_metadata_csv = resolve_paths()
+    source_images = iter_source_images(raw_images_dir)
     if not source_images:
-        print(f"no source images found in {RAW_IMAGES_DIR}")
+        print(f"no source images found in {raw_images_dir}")
         return
 
     metadata_rows: list[dict[str, str]] = []
@@ -146,18 +163,18 @@ def main() -> None:
         for degradation_name, levels, transform in generated_variants:
             for level_name, level_value in levels.items():
                 degraded = transform(image, level_value)
-                destination = output_path(source_path, index, degradation_name, level_name)
+                destination = output_path(degraded_dir, source_path, index, degradation_name, level_name)
                 save_image(destination, degraded)
                 metadata_rows.append(
                     {
-                        "image": str(destination.relative_to(RAW_IMAGES_DIR.parent)),
-                        "source": str(source_path.relative_to(RAW_IMAGES_DIR.parent)),
+                        "image": str(destination.relative_to(raw_images_dir.parent)),
+                        "source": str(source_path.relative_to(raw_images_dir.parent)),
                         "type_degradation": degradation_name,
                         "niveau": level_name,
                     }
                 )
 
-    write_metadata(metadata_rows)
+    write_metadata(degraded_metadata_csv, metadata_rows)
     print(
         f"generated {len(metadata_rows)} degraded images from "
         f"{len(source_images)} source images"
