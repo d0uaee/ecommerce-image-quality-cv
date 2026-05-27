@@ -138,11 +138,11 @@ Scripts utiles :
 Le coeur du pipeline zero-shot est en place et le projet travaille maintenant par defaut
 sur `dataset/` comme source principale.
 
-Exemples de points encore en transition :
+Etat du livrable :
 
-- le build final du dataset est encore en cours de remplissage progressif
-- `data/` existe encore comme heritage de l'ancienne base de travail
-- certains supports de soutenance doivent encore etre realignes avec la version finale
+- dataset final propre disponible dans `dataset/originals/`
+- dataset degrade disponible dans `dataset/degraded/`
+- rapports d'evaluation disponibles dans `output/reports/`
 
 ## Idee centrale du PFE
 
