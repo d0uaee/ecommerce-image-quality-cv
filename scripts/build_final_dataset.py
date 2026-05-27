@@ -885,7 +885,11 @@ def bootstrap_existing_dataset(
     counters: dict[str, int],
 ) -> None:
     existing_rows = load_existing_rows(output_dirs["metadata"])
-    rows_by_path = {row["filepath"]: row for row in existing_rows if row.get("filepath")}
+    rows_by_path = {
+        str(Path(row["filepath"])).replace("\\", "/"): row
+        for row in existing_rows
+        if row.get("filepath")
+    }
     metadata_rows.extend(existing_rows)
 
     for category in TARGET_COUNTS:
@@ -906,7 +910,7 @@ def bootstrap_existing_dataset(
             except ValueError:
                 counters[category] = max(counters[category], counts[category])
 
-            path_key = str(image_path)
+            path_key = str(image_path).replace("\\", "/")
             if path_key in rows_by_path:
                 continue
 
