@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from config import DATA_DIR, STREAMLIT_DEFAULTS
+from config import DATASET_DIR, RAW_IMAGES_DIR, STREAMLIT_DEFAULTS
 from src.analyzer import analyze
 from src.candidate_region_generator import detect_with_dino, propose_regions
 from src.selector import select_product
@@ -23,7 +23,7 @@ st.set_page_config(
 
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-METADATA_CSV = DATA_DIR / "metadata.csv"
+METADATA_CSV = DATASET_DIR / "metadata.csv"
 
 CRITERION_LABELS = {
     "sharpness": "Nettete",
@@ -156,7 +156,7 @@ def _single_image_controls() -> tuple[np.ndarray | None, str, str, str]:
 
     dataset_df = _load_dataset_announcements()
     if dataset_df.empty:
-        st.warning("Aucune annonce dataset exploitable dans data/metadata.csv.")
+        st.warning("Aucune annonce dataset exploitable dans dataset/metadata.csv.")
         return None, "", "", source_mode
 
     options = {
@@ -316,7 +316,7 @@ def _styled_batch_table(frame: pd.DataFrame):
 
 def _render_batch_mode() -> None:
     st.subheader("Batch")
-    folder_value = st.text_input("Dossier images", value=str(DATA_DIR / "raw_images" / "clothing"))
+    folder_value = st.text_input("Dossier images", value=str(RAW_IMAGES_DIR / "clothing"))
     title_template = st.text_input("Titre par defaut", value="Produit e-commerce")
     description_template = st.text_area(
         "Description par defaut",
