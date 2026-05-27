@@ -9,10 +9,12 @@ import numpy as np
 import src.text_processor as tp
 from config import PROXY_WEIGHTS, SELECTOR_WEIGHTS
 from src.candidate_region_generator import refine_crop
-from src.dictionaries import CATEGORY_KEYWORDS, EMBEDDING_VECTOR_SIZE, FRENCH_COLOR_TO_RGB
+from src.dictionaries import EMBEDDING_VECTOR_SIZE, FRENCH_COLOR_TO_RGB
 
 
 MAX_CROPS = 5
+
+
 def _load_image(image: str | Path | np.ndarray) -> np.ndarray:
     if isinstance(image, np.ndarray):
         array = image.copy()
@@ -39,49 +41,37 @@ def _cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
 
 def _category_coherence(text_category: str | None, crop_bgr: np.ndarray) -> float:
     """
-    Estime si le crop est visuellement cohérent avec la catégorie textuelle.
-
-    Heuristiques visuelles légères (rapport d'aspect + densité de contours) :
-    - portable_electronics : objets plutôt carrés/portrait, contours nets
-    - shoes               : objets nettement plus larges que hauts
-    - clothing            : plage de ratios large — on vérifie seulement l'absence
-                            de ratios extrêmes et une densité minimale de contours.
-
-    Choix de conception :
-    L'ancienne version testait `any(kw in CATEGORY_KEYWORDS["clothing"] for kw in …)`,
-    ce qui est toujours True puisque la liste contient par définition ces mots-clés.
-    Le bug masquait l'absence de signal visuel réel. On préfère un score honnête :
-    0.5 (neutre) si l'heuristique visuelle ne peut pas trancher, plutôt qu'un faux 1.0.
+    Heuristique visuelle légère pour éviter qu'un minuscule crop central
+    gagne uniquement grâce à un score CLIP proche des autres candidats.
     """
     if not text_category:
-        return 0.5
+        return 0.65
 
     gray = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY)
     mean_edge = float(np.mean(np.abs(cv2.Laplacian(gray, cv2.CV_32F))))
     aspect_ratio = crop_bgr.shape[1] / max(crop_bgr.shape[0], 1)
+    min_dim = min(crop_bgr.shape[0], crop_bgr.shape[1])
 
     if text_category == "portable_electronics":
-        # Téléphones/tablettes/casques : ratio approximativement carré ou portrait,
-        # contours nets (écrans, coques) → seuil d'arête plus élevé.
-        return 1.0 if (0.65 <= aspect_ratio <= 1.85 and mean_edge > 8.0) else 0.5
+        if 0.65 <= aspect_ratio <= 1.85 and mean_edge > 8.0 and min_dim >= 120:
+            return 1.0
+        return 0.65
 
     if text_category == "shoes":
-        # Chaussures photographiées de côté ou en 3/4 : nettement plus larges que hautes.
-        return 1.0 if (1.1 <= aspect_ratio <= 3.2 and mean_edge > 6.0) else 0.5
+        if 0.55 <= aspect_ratio <= 3.2 and mean_edge > 6.0 and min_dim >= 140:
+            return 1.0
+        if 0.45 <= aspect_ratio <= 3.5 and mean_edge > 4.5:
+            return 0.75
+        return 0.6
 
     if text_category == "clothing":
-        # Les vêtements couvrent une large plage de ratios (t-shirt portrait vs veste
-        # 3/4 paysage). Sans détecteur de forme dédié, on ne peut pas distinguer un
-        # vêtement d'un fond non-vêtement sur le seul ratio. On accepte tout crop dont
-        # le ratio reste dans des bornes non-absurdes et qui présente des contours
-        # minimaux (évite les crops de fond uni).
-        if 0.35 <= aspect_ratio <= 2.0 and mean_edge > 4.0:
+        if 0.35 <= aspect_ratio <= 2.0 and mean_edge > 4.0 and min_dim >= 140:
             return 1.0
-        # Ratio extrême ou crop quasi-uniforme → signal insuffisant, score neutre.
-        return 0.5
+        if 0.25 <= aspect_ratio <= 2.5 and mean_edge > 3.0:
+            return 0.75
+        return 0.6
 
-    # Catégorie inconnue : score neutre.
-    return 0.5
+    return 0.65
 
 
 def _mean_color_name(crop_bgr: np.ndarray) -> str | None:
@@ -162,7 +152,6 @@ def select_product(
         if tp._embed_backend != "clip":
             score_clip, proxy_details = _proxy_clip_score(crop, text_data, area, centrality)
             clip_backend = "proxy"
-            image_embedding = np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)
         else:
             image_embedding = _encode_crop_embedding(crop)
             score_clip = _cosine_similarity(image_embedding, text_embedding)
@@ -196,6 +185,9 @@ def select_product(
         raise ValueError("Aucune région candidate exploitable pour la sélection.")
 
     selection_details.sort(key=lambda item: item["score_total"], reverse=True)
+    for rank, item in enumerate(selection_details, start=1):
+        item["candidate_rank"] = rank
+
     winner = selection_details[0]
     refined = refine_crop(image_bgr, tuple(winner["bbox"]))
 
