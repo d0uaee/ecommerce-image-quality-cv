@@ -92,6 +92,11 @@ def select_evaluation_images(limit: int = 50) -> list[dict[str, Any]]:
 
 
 def build_human_template(limit: int = 50) -> pd.DataFrame:
+    if HUMAN_TEMPLATE_CSV.exists():
+        existing = pd.read_csv(HUMAN_TEMPLATE_CSV)
+        if "score_humain" in existing.columns and pd.to_numeric(existing["score_humain"], errors="coerce").notna().any():
+            return existing
+
     rows: list[dict[str, Any]] = []
     for item in select_evaluation_images(limit):
         image_path = item["image_path"]
