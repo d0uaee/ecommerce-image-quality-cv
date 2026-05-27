@@ -534,6 +534,7 @@ def copy_kaggle_subset(
     min_width: int,
     min_height: int,
     metadata_rows: list[dict[str, str]],
+    metadata_path: Path,
     counters: dict[str, int],
     kaggle_root: Path,
 ) -> None:
@@ -587,6 +588,7 @@ def copy_kaggle_subset(
                 notes=decision.notes,
             )
         )
+        persist_metadata(metadata_path, metadata_rows)
         counts[category] += 1
         LOGGER.info("Accepted Kaggle %s -> %s (%s/%s)", item_id, image_id, counts[category], TARGET_COUNTS[category])
 
@@ -632,6 +634,7 @@ def copy_manifest_subset(
     min_width: int,
     min_height: int,
     metadata_rows: list[dict[str, str]],
+    metadata_path: Path,
     counters: dict[str, int],
     manifest_path: Path,
 ) -> None:
@@ -683,6 +686,7 @@ def copy_manifest_subset(
                 notes=notes,
             )
         )
+        persist_metadata(metadata_path, metadata_rows)
         counts[category] += 1
         LOGGER.info(
             "Accepted curated %s -> %s (%s/%s)",
@@ -719,6 +723,7 @@ def copy_shopify_subset(
     min_width: int,
     min_height: int,
     metadata_rows: list[dict[str, str]],
+    metadata_path: Path,
     counters: dict[str, int],
     splits: list[str],
 ) -> None:
@@ -768,6 +773,7 @@ def copy_shopify_subset(
                 notes=notes,
             )
         )
+        persist_metadata(metadata_path, metadata_rows)
         counts["portable_electronics"] += 1
         LOGGER.info(
             "Accepted Shopify '%s' -> %s (%s/%s)",
@@ -785,6 +791,7 @@ def copy_shopify_all_categories(
     min_width: int,
     min_height: int,
     metadata_rows: list[dict[str, str]],
+    metadata_path: Path,
     counters: dict[str, int],
     splits: list[str],
 ) -> None:
@@ -836,6 +843,7 @@ def copy_shopify_all_categories(
                 notes=notes,
             )
         )
+        persist_metadata(metadata_path, metadata_rows)
         counts[category] += 1
         LOGGER.info(
             "Accepted Shopify %s '%s' -> %s (%s/%s)",
@@ -853,6 +861,11 @@ def write_metadata(metadata_path: Path, rows: list[dict[str, str]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=METADATA_COLUMNS)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def persist_metadata(metadata_path: Path, rows: list[dict[str, str]]) -> None:
+    rows.sort(key=lambda row: (row["category"], row["image_id"]))
+    write_metadata(metadata_path, rows)
 
 
 def validate_final_counts(counts: dict[str, int]) -> None:
@@ -878,6 +891,7 @@ def main() -> None:
             min_width=args.min_width,
             min_height=args.min_height,
             metadata_rows=metadata_rows,
+            metadata_path=output_dirs["metadata"],
             counters=counters,
             manifest_path=args.fashion_manifest,
         )
@@ -889,6 +903,7 @@ def main() -> None:
             min_width=args.min_width,
             min_height=args.min_height,
             metadata_rows=metadata_rows,
+            metadata_path=output_dirs["metadata"],
             counters=counters,
             kaggle_root=kaggle_root,
         )
@@ -900,6 +915,7 @@ def main() -> None:
             min_width=args.min_width,
             min_height=args.min_height,
             metadata_rows=metadata_rows,
+            metadata_path=output_dirs["metadata"],
             counters=counters,
             splits=args.shopify_splits,
         )
@@ -910,13 +926,13 @@ def main() -> None:
             min_width=args.min_width,
             min_height=args.min_height,
             metadata_rows=metadata_rows,
+            metadata_path=output_dirs["metadata"],
             counters=counters,
             splits=args.shopify_splits,
         )
 
     validate_final_counts(counts)
-    metadata_rows.sort(key=lambda row: (row["category"], row["image_id"]))
-    write_metadata(output_dirs["metadata"], metadata_rows)
+    persist_metadata(output_dirs["metadata"], metadata_rows)
 
     LOGGER.info("Final dataset created at %s", output_dirs["root"])
     for category in ["shoes", "clothing", "portable_electronics"]:
