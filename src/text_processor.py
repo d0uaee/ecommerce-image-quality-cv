@@ -231,7 +231,13 @@ def encode_image_embedding(image: Any) -> np.ndarray:
         inputs = image_processor(images=pil_image, return_tensors="pt")
         with torch.no_grad():
             features = image_model.get_image_features(**inputs)
-        vector = features.detach().cpu().numpy().reshape(-1)
+        if hasattr(features, "pooler_output") and features.pooler_output is not None:
+            tensor = features.pooler_output
+        elif hasattr(features, "last_hidden_state") and features.last_hidden_state is not None:
+            tensor = features.last_hidden_state[:, 0, :]
+        else:
+            tensor = features
+        vector = tensor.detach().cpu().numpy().reshape(-1)
         norm = float(np.linalg.norm(vector))
         if norm > 0.0:
             vector = vector / norm
