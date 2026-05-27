@@ -205,8 +205,8 @@ Ce choix limite la dispersion de constantes magiques dans le projet.
 La structure cible des donnees est :
 
 ```text
-data/
-  raw_images/
+dataset/
+  originals/
   clean_references/
   degraded/
   metadata.csv
@@ -220,10 +220,10 @@ Le protocole cible est :
 
 Etat reel du depot :
 
-- `metadata.csv` suit deja le bon schema cible
-- une partie du contenu reste historique et basse resolution
-- le dataset versionne sert encore surtout au smoke test et au developpement
-- le dataset final du PFE devra etre regenere avec des images HD propres au protocole cible
+- `dataset/` est maintenant la source de travail par defaut
+- `metadata.csv` est ecrit de maniere incrementale pendant la construction du dataset final
+- `data/` reste present comme heritage de l'ancienne base de travail
+- le dataset final continue de se remplir progressivement avec des images plus propres que la base historique
 
 ## 8. Evaluation
 
@@ -231,7 +231,7 @@ Deux scripts principaux existent pour la validation :
 
 ### `evaluate_analyzer.py`
 
-- mesure la sensibilite des criteres sur `data/degraded/`
+- mesure la sensibilite des criteres sur `dataset/degraded/`
 - compare image propre vs image degradee
 - produit des tableaux de baisse moyenne par critere
 
@@ -252,10 +252,10 @@ Deux scripts principaux existent pour la validation :
 
 ## 10. Limites actuelles
 
-- le dataset versionne n'est pas encore completement aligne avec le scope final
-- les references historiques en `300x300` penaliseront fortement le critere de resolution
+- le build du dataset final n'est pas encore termine
+- une partie des references historiques en `300x300` existe encore dans `data/`
 - la qualite du fallback regions candidates depend du type d'image
-- les supports de soutenance et certains fichiers de test doivent encore etre alignes avec la version zero-shot finale
+- les supports de soutenance doivent encore etre finalises sur la version zero-shot definitive
 
 ## 11. Conclusion
 
