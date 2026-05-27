@@ -4,8 +4,8 @@ import argparse
 import csv
 import logging
 import os
+import subprocess
 import sys
-import zipfile
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -221,9 +221,7 @@ def locate_kaggle_root(cli_root: Path | None) -> Path:
         candidates.append(Path(env_root))
 
     for candidate in candidates:
-        styles_csv = next(candidate.rglob("styles.csv"), None)
-        images_dir = next((p for p in candidate.rglob("images") if p.is_dir()), None)
-        if styles_csv and images_dir:
+        if _looks_like_kaggle_root(candidate):
             LOGGER.info("Using existing Kaggle dataset at %s", candidate)
             return candidate
 
@@ -241,6 +239,14 @@ def locate_kaggle_root(cli_root: Path | None) -> Path:
         LOGGER.warning("kagglehub unavailable or broken, trying Kaggle API fallback: %s", exc)
 
     try:
+        root = _download_with_kaggle_cli()
+        LOGGER.info("Kaggle dataset prepared via CLI at %s", root)
+        return root
+    except Exception as exc:
+        last_error = exc
+        LOGGER.warning("Kaggle CLI fallback failed, trying Kaggle API fallback: %s", exc)
+
+    try:
         root = _download_with_kaggle_api()
         LOGGER.info("Kaggle dataset extracted at %s", root)
         return root
@@ -255,13 +261,47 @@ def locate_kaggle_root(cli_root: Path | None) -> Path:
         raise RuntimeError(message) from exc
 
 
+def _looks_like_kaggle_root(root: Path) -> bool:
+    if not root.exists():
+        return False
+    metadata_candidates = list(root.rglob("styles.csv")) + list(root.rglob("images.csv"))
+    images_dir = next((p for p in root.rglob("images") if p.is_dir()), None)
+    return bool(metadata_candidates and images_dir)
+
+
+def _download_with_kaggle_cli() -> Path:
+    cache_root = PROJECT_ROOT / "dataset_cache" / "kaggle_fashion"
+    extract_root = cache_root / "cli_extracted"
+    extract_root.mkdir(parents=True, exist_ok=True)
+
+    if _looks_like_kaggle_root(extract_root):
+        return extract_root
+
+    command = [
+        str(Path(sys.executable)),
+        "-m",
+        "kaggle",
+        "datasets",
+        "download",
+        "-d",
+        KAGGLE_DATASET_ID,
+        "-p",
+        str(extract_root),
+        "--unzip",
+    ]
+    LOGGER.info("Downloading Kaggle dataset %s via Kaggle CLI...", KAGGLE_DATASET_ID)
+    subprocess.run(command, check=True)
+
+    if not _looks_like_kaggle_root(extract_root):
+        raise RuntimeError(f"Kaggle CLI finished but dataset layout is incomplete under {extract_root}")
+    return extract_root
+
+
 def _download_with_kaggle_api() -> Path:
     cache_root = PROJECT_ROOT / "dataset_cache" / "kaggle_fashion"
     cache_root.mkdir(parents=True, exist_ok=True)
 
-    styles_csv = next(cache_root.rglob("styles.csv"), None)
-    images_dir = next((p for p in cache_root.rglob("images") if p.is_dir()), None)
-    if styles_csv and images_dir:
+    if _looks_like_kaggle_root(cache_root):
         return cache_root
 
     try:
@@ -272,58 +312,32 @@ def _download_with_kaggle_api() -> Path:
     api = KaggleApi()
     api.authenticate()
 
+    extract_root = cache_root / "api_extracted"
+    extract_root.mkdir(parents=True, exist_ok=True)
+
+    if _looks_like_kaggle_root(extract_root):
+        return extract_root
+
     dataset_slug = KAGGLE_DATASET_ID
-    zip_target = cache_root / "fashion-product-images-dataset.zip"
+    LOGGER.info("Downloading Kaggle dataset %s via Kaggle API unzip mode...", dataset_slug)
+    api.dataset_download_files(dataset_slug, path=str(extract_root), unzip=True, quiet=False)
 
-    if zip_target.exists() and not _is_valid_zip(zip_target):
-        LOGGER.warning("Found an incomplete Kaggle archive at %s, deleting it and retrying.", zip_target)
-        zip_target.unlink()
-
-    if not zip_target.exists():
-        LOGGER.info("Downloading Kaggle dataset %s via Kaggle API...", dataset_slug)
-        api.dataset_download_files(dataset_slug, path=str(cache_root), unzip=False, quiet=False)
-
-    if not zip_target.exists():
-        discovered = list(cache_root.glob("*.zip"))
-        if discovered:
-            zip_target = discovered[0]
-        else:
-            raise FileNotFoundError("Kaggle API did not produce the expected dataset archive.")
-
-    extract_root = cache_root / "extracted"
-    if not _is_valid_zip(zip_target):
-        raise zipfile.BadZipFile(f"Downloaded archive is still invalid: {zip_target}")
-
-    if not extract_root.exists():
-        extract_root.mkdir(parents=True, exist_ok=True)
-        LOGGER.info("Extracting %s ...", zip_target)
-        with zipfile.ZipFile(zip_target, "r") as archive:
-            archive.extractall(extract_root)
+    if not _looks_like_kaggle_root(extract_root):
+        raise RuntimeError(f"Kaggle API finished but dataset layout is incomplete under {extract_root}")
 
     return extract_root
 
 
-def _is_valid_zip(path: Path) -> bool:
-    if not path.exists() or path.stat().st_size <= 0:
-        return False
-    try:
-        with zipfile.ZipFile(path, "r") as archive:
-            archive.infolist()
-        return True
-    except zipfile.BadZipFile:
-        return False
-
-
-def locate_styles_and_images(root: Path) -> tuple[Path, Path]:
-    styles_csv = next(root.rglob("styles.csv"), None)
+def locate_metadata_and_images(root: Path) -> tuple[Path, Path]:
+    metadata_csv = next(root.rglob("styles.csv"), None) or next(root.rglob("images.csv"), None)
     images_dir = next((p for p in root.rglob("images") if p.is_dir()), None)
-    if not styles_csv or not images_dir:
-        raise FileNotFoundError(f"Could not locate styles.csv and images/ under {root}")
-    return styles_csv, images_dir
+    if not metadata_csv or not images_dir:
+        raise FileNotFoundError(f"Could not locate metadata CSV and images/ under {root}")
+    return metadata_csv, images_dir
 
 
-def load_kaggle_rows(styles_csv: Path) -> Iterable[dict[str, str]]:
-    with styles_csv.open("r", encoding="utf-8", newline="") as handle:
+def load_kaggle_rows(metadata_csv: Path) -> Iterable[dict[str, str]]:
+    with metadata_csv.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
             yield row
@@ -498,9 +512,9 @@ def copy_kaggle_subset(
     counters: dict[str, int],
     kaggle_root: Path,
 ) -> None:
-    styles_csv, images_dir = locate_styles_and_images(kaggle_root)
+    metadata_csv, images_dir = locate_metadata_and_images(kaggle_root)
 
-    for row in load_kaggle_rows(styles_csv):
+    for row in load_kaggle_rows(metadata_csv):
         category = classify_kaggle_row(row)
         if category not in {"shoes", "clothing"}:
             continue
