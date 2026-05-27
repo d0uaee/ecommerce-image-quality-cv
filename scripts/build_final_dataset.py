@@ -275,6 +275,10 @@ def _download_with_kaggle_api() -> Path:
     dataset_slug = KAGGLE_DATASET_ID
     zip_target = cache_root / "fashion-product-images-dataset.zip"
 
+    if zip_target.exists() and not _is_valid_zip(zip_target):
+        LOGGER.warning("Found an incomplete Kaggle archive at %s, deleting it and retrying.", zip_target)
+        zip_target.unlink()
+
     if not zip_target.exists():
         LOGGER.info("Downloading Kaggle dataset %s via Kaggle API...", dataset_slug)
         api.dataset_download_files(dataset_slug, path=str(cache_root), unzip=False, quiet=False)
@@ -287,6 +291,9 @@ def _download_with_kaggle_api() -> Path:
             raise FileNotFoundError("Kaggle API did not produce the expected dataset archive.")
 
     extract_root = cache_root / "extracted"
+    if not _is_valid_zip(zip_target):
+        raise zipfile.BadZipFile(f"Downloaded archive is still invalid: {zip_target}")
+
     if not extract_root.exists():
         extract_root.mkdir(parents=True, exist_ok=True)
         LOGGER.info("Extracting %s ...", zip_target)
@@ -294,6 +301,17 @@ def _download_with_kaggle_api() -> Path:
             archive.extractall(extract_root)
 
     return extract_root
+
+
+def _is_valid_zip(path: Path) -> bool:
+    if not path.exists() or path.stat().st_size <= 0:
+        return False
+    try:
+        with zipfile.ZipFile(path, "r") as archive:
+            archive.infolist()
+        return True
+    except zipfile.BadZipFile:
+        return False
 
 
 def locate_styles_and_images(root: Path) -> tuple[Path, Path]:
