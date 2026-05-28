@@ -216,7 +216,11 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
 
 def _contrast_score(gray: np.ndarray) -> dict[str, Any]:
     thresholds = QUALITY_THRESHOLDS["contrast"]
-    std_value = float(gray.std())
+    edges = cv2.Canny(gray, 80, 160) > 0
+    informative_mask = (gray < 245) | edges
+    informative_ratio = float(np.mean(informative_mask))
+    stats_pixels = gray[informative_mask] if informative_ratio >= 0.12 else gray.reshape(-1)
+    std_value = float(stats_pixels.std())
     score = _linear_score(std_value, thresholds["flat_max"], thresholds["strong_min"])
 
     if std_value < thresholds["flat_max"]:
