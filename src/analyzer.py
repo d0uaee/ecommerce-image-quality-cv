@@ -111,16 +111,40 @@ def _encode_image_embedding(image_bgr: np.ndarray) -> np.ndarray:
     return tp.encode_image_embedding(rgb)
 
 
+def _informative_mask(gray: np.ndarray) -> np.ndarray:
+    edges = cv2.Canny(gray, 80, 160) > 0
+    texture = cv2.GaussianBlur(np.abs(cv2.Laplacian(gray, cv2.CV_32F)), (0, 0), 1.1) > 4.0
+    return (gray < 245) | edges | texture
+
+
+def _informative_bbox(gray: np.ndarray) -> tuple[int, int, int, int] | None:
+    mask = _informative_mask(gray).astype(np.uint8) * 255
+    coords = cv2.findNonZero(mask)
+    if coords is None:
+        return None
+    x, y, w, h = cv2.boundingRect(coords)
+    if w < 12 or h < 12:
+        return None
+    return int(x), int(y), int(x + w), int(y + h)
+
+
 def _sharpness_score(gray: np.ndarray) -> dict[str, Any]:
     thresholds = QUALITY_THRESHOLDS["sharpness"]
     lap = cv2.Laplacian(gray, cv2.CV_64F)
-    edges = cv2.Canny(gray, 80, 160) > 0
-    informative_mask = (gray < 245) | edges
+    informative_mask = _informative_mask(gray)
     if float(np.mean(informative_mask)) >= 0.12:
         lap_var = float(lap[informative_mask].var())
+        gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+        gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+        tenengrad = float(np.mean(np.sqrt(gx[informative_mask] ** 2 + gy[informative_mask] ** 2)))
     else:
         lap_var = float(lap.var())
-    score = _linear_score(lap_var, thresholds["very_blurry_max"], thresholds["excellent_min"])
+        gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+        gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+        tenengrad = float(np.mean(np.sqrt(gx**2 + gy**2)))
+    lap_score = _linear_score(lap_var, thresholds["very_blurry_max"], thresholds["excellent_min"])
+    tenengrad_score = _linear_score(tenengrad, 8.0, 28.0)
+    score = 0.72 * lap_score + 0.28 * tenengrad_score
 
     if lap_var < thresholds["very_blurry_max"]:
         message = "Nettete tres faible : la photo est franchement floue."
@@ -131,13 +155,17 @@ def _sharpness_score(gray: np.ndarray) -> dict[str, Any]:
     else:
         message = "Bonne nettete : les contours et textures sont bien lisibles."
 
-    return _criterion("sharpness", score, round(lap_var, 2), message)
+    return _criterion(
+        "sharpness",
+        score,
+        {"laplacian_variance": round(lap_var, 2), "tenengrad": round(tenengrad, 2)},
+        message,
+    )
 
 
 def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
     thresholds = QUALITY_THRESHOLDS["exposure"]
-    edges = cv2.Canny(gray, 80, 160) > 0
-    informative_mask = (gray < 245) | edges
+    informative_mask = _informative_mask(gray)
     informative_ratio = float(np.mean(informative_mask))
     stats_pixels = gray[informative_mask] if informative_ratio >= 0.12 else gray.reshape(-1)
 
@@ -222,8 +250,7 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
 
 def _contrast_score(gray: np.ndarray) -> dict[str, Any]:
     thresholds = QUALITY_THRESHOLDS["contrast"]
-    edges = cv2.Canny(gray, 80, 160) > 0
-    informative_mask = (gray < 245) | edges
+    informative_mask = _informative_mask(gray)
     informative_ratio = float(np.mean(informative_mask))
     stats_pixels = gray[informative_mask] if informative_ratio >= 0.12 else gray.reshape(-1)
     std_value = float(stats_pixels.std())
@@ -279,40 +306,60 @@ def _effective_resolution_score(gray: np.ndarray) -> dict[str, Any]:
     thresholds = QUALITY_THRESHOLDS["effective_resolution"]
     height, width = gray.shape[:2]
     lap = cv2.Laplacian(gray, cv2.CV_32F)
-    detail_ratio = float(np.mean(np.abs(lap)) / 255.0)
-    edge_density = float(np.mean(cv2.Canny(gray, 80, 160) > 0))
-    image_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-    candidate_regions = propose_regions(image_bgr)
-    if candidate_regions:
-        main_region = candidate_regions[0]
-        useful_area = float(main_region.get("area", 0.0))
-        useful_centrality = float(main_region.get("centrality", 0.0))
+    informative_mask = _informative_mask(gray)
+    mask_ratio = float(np.mean(informative_mask))
+    stats_pixels = np.abs(lap)[informative_mask] if mask_ratio >= 0.08 else np.abs(lap).reshape(-1)
+    detail_ratio = float(np.mean(stats_pixels) / 255.0)
+    edge_map = cv2.Canny(gray, 80, 160) > 0
+    edge_density = float(np.mean(edge_map[informative_mask])) if mask_ratio >= 0.08 else float(np.mean(edge_map))
+
+    informative_bbox = _informative_bbox(gray)
+    if informative_bbox is not None:
+        x1, y1, x2, y2 = informative_bbox
+        useful_area = float(((x2 - x1) * (y2 - y1)) / max(1, width * height))
+        cx = (x1 + x2) / 2.0
+        cy = (y1 + y2) / 2.0
+        useful_centrality = 1.0 - min(
+            1.0,
+            (abs(cx - width / 2.0) / max(1.0, width / 2.0) + abs(cy - height / 2.0) / max(1.0, height / 2.0)) / 2.0,
+        )
     else:
-        useful_area = 0.35
-        useful_centrality = 0.50
+        image_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        candidate_regions = propose_regions(image_bgr)
+        if candidate_regions:
+            main_region = candidate_regions[0]
+            useful_area = float(main_region.get("area", 0.0))
+            useful_centrality = float(main_region.get("centrality", 0.0))
+        else:
+            useful_area = 0.35
+            useful_centrality = 0.50
 
     width_score = _linear_score(width, thresholds["min_width"], thresholds["recommended_width"])
     height_score = _linear_score(height, thresholds["min_height"], thresholds["recommended_height"])
     detail_score = _linear_score(detail_ratio, thresholds["detail_soft_min"], thresholds["detail_good_min"])
-    useful_area_score = _linear_score(useful_area, 0.16, 0.42)
+    useful_area_score = _linear_score(useful_area, 0.10, 0.38)
     useful_centrality_score = _linear_score(useful_centrality, 0.38, 0.82)
-    edge_density_score = _linear_score(edge_density, 0.025, 0.11)
+    edge_density_score = _linear_score(edge_density, 0.018, 0.10)
     score = (
-        0.24 * width_score
-        + 0.24 * height_score
-        + 0.24 * detail_score
-        + 0.12 * useful_area_score
-        + 0.06 * useful_centrality_score
-        + 0.10 * edge_density_score
+        0.21 * width_score
+        + 0.21 * height_score
+        + 0.28 * detail_score
+        + 0.10 * useful_area_score
+        + 0.08 * useful_centrality_score
+        + 0.12 * edge_density_score
     )
     detail_penalty = max(0.0, thresholds["detail_soft_min"] - detail_ratio) * 900.0
-    edge_penalty = max(0.0, 0.03 - edge_density) * 220.0
-    area_penalty = max(0.0, 0.14 - useful_area) * 110.0
+    edge_penalty = max(0.0, 0.02 - edge_density) * 180.0
+    area_penalty = max(0.0, 0.09 - useful_area) * 70.0
+    if width >= thresholds["recommended_width"] and height >= thresholds["recommended_height"] and detail_ratio >= 0.05:
+        area_penalty *= 0.35
+    if useful_area >= 0.08 and detail_ratio >= 0.06:
+        edge_penalty *= 0.65
     score -= detail_penalty + edge_penalty + area_penalty
 
     if width < thresholds["min_width"] or height < thresholds["min_height"]:
         message = "Resolution faible : l'image manque de pixels utiles."
-    elif detail_ratio < thresholds["detail_soft_min"] or useful_area < 0.16:
+    elif detail_ratio < thresholds["detail_soft_min"] or useful_area < 0.10:
         message = "Resolution effective limitee : l'image semble lissee ou reechantillonnee."
     else:
         message = "Resolution correcte : le niveau de detail est exploitable."
@@ -327,6 +374,7 @@ def _effective_resolution_score(gray: np.ndarray) -> dict[str, Any]:
             "edge_density": round(edge_density, 4),
             "useful_area": round(useful_area, 4),
             "useful_centrality": round(useful_centrality, 4),
+            "informative_ratio": round(mask_ratio, 4),
         },
         message,
     )
@@ -355,6 +403,11 @@ def _resolve_bbox_context(
         x2 = max(x1 + 1, min(width, x2))
         y2 = max(y1 + 1, min(height, y2))
         return x1, y1, x2, y2
+
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    informative_bbox = _informative_bbox(gray)
+    if informative_bbox is not None:
+        return informative_bbox
 
     candidate_regions = propose_regions(image_bgr)
     if candidate_regions:
