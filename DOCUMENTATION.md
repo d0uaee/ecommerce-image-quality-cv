@@ -1,45 +1,84 @@
-# Documentation Technique - Systeme Zero-Shot d'Evaluation de Qualite d'Images E-commerce
+# Documentation Technique Detaillee - Systeme Zero-Shot d'Evaluation de Qualite d'Images E-commerce
 
-## 1. Objectif du projet
+## 1. Resume du projet
 
-Ce projet PFE vise a evaluer automatiquement la qualite d'une photo de produit e-commerce
-et a fournir un score global accompagne de conseils d'amelioration en francais et en darija.
+Ce projet PFE implemente un systeme zero-shot capable d'evaluer automatiquement la qualite
+d'une photo de produit e-commerce a partir d'une annonce composee de :
 
-Le systeme cible des petits vendeurs qui ne disposent pas de photographe professionnel.
+- une image produit
+- un titre
+- une description
 
-## 2. Positionnement scientifique
+Le systeme produit :
 
-Le projet suit une logique zero-shot :
+- un score global de qualite sur 100
+- des sous-scores explicables
+- un crop selectionne correspondant au produit retenu
+- des recommandations d'amelioration en francais et en darija
 
-- aucun entrainement de modele n'est realise dans ce depot
-- les modeles utilises sont pre-entraines
-- les donnees servent a calibrer des seuils et a valider le pipeline
-- l'innovation se situe dans l'architecture multimodale et l'explicabilite
+La cible principale est le petit vendeur e-commerce qui souhaite verifier rapidement
+si sa photo est publiable sans avoir recours a un photographe professionnel.
 
-Les briques principales sont :
+## 2. Problematique
 
-- NLP pour exploiter le texte de l'annonce
-- vision classique OpenCV pour proposer des regions candidates
-- CLIP multilingue pour relier texte et image
-- heuristiques explicables pour la qualite visuelle
-- scoring global interpretable
+Dans les petites boutiques e-commerce, la qualite des photos est souvent heterogene :
 
-## 3. Hypotheses du projet
+- produit mal cadre
+- image floue
+- faible resolution
+- mauvaise exposition
+- texte de l'annonce non coherent avec l'image
 
-Le systeme repose sur cinq hypotheses structurantes :
+Les approches supervisees classiques exigent generalement :
+
+- un dataset annote important
+- un entrainement specifique
+- un cout de developpement et de maintenance eleve
+
+Dans ce projet, le choix est inverse :
+
+- pas d'entrainement de modele local
+- reutilisation de modeles pre-entraines
+- regles et mesures explicables
+- evaluation reproductible sur des degradations controlees
+
+## 3. Hypotheses et choix scientifiques
+
+Le projet repose sur cinq hypotheses non negociables :
 
 1. le texte de l'annonce (`titre + description`) est la source de verite principale
 2. il n'y a pas d'OCR dans le chemin critique du scoring
-3. aucun modele n'est entraine localement
-4. les bonnes images servent de references et les mauvaises images sont generees par degradation controlee
+3. aucun modele n'est entraine dans ce depot
+4. les bonnes images servent de references et les mauvaises sont generees par degradation controlee
 5. le scope est volontairement reduit a trois familles :
    - `shoes`
    - `clothing`
    - `portable_electronics`
 
-## 4. Pipeline actuel
+Ces hypotheses permettent de garder un projet realiste sur environ deux mois, tout en
+conservant une base scientifique defendable.
 
-Le pipeline reel du projet est le suivant :
+## 4. Positionnement de l'innovation
+
+L'innovation de ce projet ne repose pas sur l'entrainement d'un nouveau modele.
+Elle repose sur la combinaison explicable de plusieurs briques :
+
+- NLP pour exploiter le texte de l'annonce
+- vision classique OpenCV pour proposer des regions candidates
+- CLIP multilingue pour relier texte et image
+- heuristiques interpretable pour la qualite visuelle
+- fusion de scores pour choisir le bon produit
+
+Le second point fort est l'explicabilite :
+
+- le crop retenu est visible
+- les sous-scores sont detailles
+- les valeurs intermediaires du selector peuvent etre affichees
+- la coherence image/texte est decomposable
+
+## 5. Architecture generale
+
+Le pipeline principal est le suivant :
 
 ```text
 annonce (image + titre + description)
@@ -48,21 +87,66 @@ annonce (image + titre + description)
  -> selector
  -> analyzer
  -> score global
- -> conseils FR / Darija
+ -> recommandations
  -> app Streamlit
 ```
 
-## 5. Description des modules
+### Lecture du pipeline
 
-### 5.1 `src/text_processor.py`
+1. le texte est nettoye et converti en representation exploitable
+2. plusieurs regions candidates sont proposees dans l'image
+3. le systeme choisit la region la plus probable pour representer le bon produit
+4. la qualite du crop selectionne est analysee
+5. le systeme calcule un score global et formule des conseils
 
-Role :
+## 6. Arborescence du projet
 
-- nettoyer le texte de l'annonce
-- extraire des attributs simples
-- produire un embedding texte reutilisable
+Structure principale :
 
-Sortie principale :
+```text
+ecommerce-image-quality/
+|- app.py
+|- config.py
+|- requirements.txt
+|- README.md
+|- DOCUMENTATION.md
+|- generate_degraded.py
+|- evaluate_analyzer.py
+|- evaluate_full.py
+|- scripts/
+|  `- build_final_dataset.py
+|- dataset/
+|  |- originals/
+|  |- degraded/
+|  |- annotations/
+|  |- metadata.csv
+|  `- degraded_metadata.csv
+|- output/
+|  `- reports/
+`- src/
+   |- __init__.py
+   |- analyzer.py
+   |- candidate_region_generator.py
+   |- dictionaries.py
+   |- scraper.py
+   |- selector.py
+   `- text_processor.py
+```
+
+## 7. Description detaillee des modules
+
+### 7.1 `src/text_processor.py`
+
+#### Role
+
+Transformer le texte de l'annonce en informations structurantes pour le pipeline.
+
+#### Entrees
+
+- `title: str`
+- `description: str`
+
+#### Sortie principale
 
 ```python
 {
@@ -74,73 +158,190 @@ Sortie principale :
 }
 ```
 
-Implementation actuelle :
+#### Fonctions principales
 
-- normalisation textuelle
-- spaCy `fr_core_news_md` si disponible
-- extraction heuristique via `rapidfuzz` et dictionnaires
-- embedding texte via `sentence-transformers/clip-ViT-B-32-multilingual-v1`
-- cache d'embedding pour eviter les recalculs
-- fallback robuste vers un vecteur nul si le backend n'est pas disponible
+- normalisation du texte
+- tokenisation avec spaCy si disponible
+- extraction heuristique de couleur
+- extraction heuristique de categorie
+- extraction heuristique de marque
+- embedding texte via CLIP multilingue
 
-### 5.2 `src/candidate_region_generator.py`
+#### Backend d'embedding
 
-Role :
+Le backend utilise repose sur `sentence-transformers` avec un modele CLIP multilingue.
 
-- proposer des regions candidates sans detection supervisee par defaut
+Un cache est applique pour eviter de recalculer les embeddings texte identiques.
 
-Strategie actuelle :
+#### Robustesse
+
+Si le backend d'embedding n'est pas disponible :
+
+- aucun `False` n'est stocke comme modele
+- le modele vaut `None`
+- la fonction retourne un vecteur nul de taille fixe
+
+Cela evite les crashs du type `bool object is not callable`.
+
+#### Limites
+
+- extraction couleur heuristique
+- extraction marque susceptible de faux positifs
+- dependance partielle a la qualite du texte fourni
+
+### 7.2 `src/dictionaries.py`
+
+#### Role
+
+Centraliser les dictionnaires de connaissance legers utilises par `text_processor`.
+
+#### Contenu
+
+- categories autorisees
+- mots-cles par categorie
+- couleurs francaises et alias
+- mapping couleur vers RGB
+- marques frequentes
+- taille fixe du vecteur d'embedding
+
+#### Raison d'exister
+
+Permet de garder :
+
+- un code plus lisible
+- une extraction plus facilement ajustable
+- une base explicable pour les correspondances texte -> attributs
+
+### 7.3 `src/candidate_region_generator.py`
+
+#### Role
+
+Proposer des regions candidates dans l'image sans detection supervisee par defaut.
+
+Le terme "candidate region generator" est volontaire :
+
+- on ne pretend pas faire une detection entrainee sur classes
+- on propose un ensemble restreint de crops possibles
+
+#### Strategie par defaut
 
 - saliency OpenCV si disponible
-- fallback contours / seuillage adaptatif
-- regions triees par aire et centralite
-- maximum 5 regions pour limiter le cout du selector
+- sinon seuillage adaptatif + contours
 
-Fonctions principales :
+#### Strategie fallback
 
-- `propose_regions(image)`
-- `refine_crop(image, bbox)` avec GrabCut
-- `detect_with_dino(image, prompt)` comme filet de securite activable
+- Grounding DINO disponible en filet de securite
+- activable par configuration
+- desactive par defaut pour conserver une approche plus legere
 
-Important :
+#### Contraintes
 
-- Grounding DINO existe comme fallback
-- il est desactive par defaut via `config.py`
+- maximum 5 regions candidates
+- tri par aire et centralite
+- compatibilite avec le selector
 
-### 5.3 `src/selector.py`
+#### Sortie type
 
-Role :
+```python
+[
+    {
+        "bbox": (x1, y1, x2, y2),
+        "area": float,
+        "centrality": float,
+    },
+    ...
+]
+```
 
-- choisir le bon produit parmi les regions candidates
+#### Fonction `refine_crop`
 
-Pour chaque region candidate, le systeme calcule :
+Le refine final repose sur GrabCut applique uniquement au gagnant.
 
-- `score_clip` : similarite image/texte
-- `score_visual` : aire normalisee x centralite
-- `score_category` : coherence categorie heuristique
+Objectif :
 
-Formule actuelle :
+- eviter un cout eleve sur toutes les regions
+- affiner le cadrage du produit final
+
+### 7.4 `src/selector.py`
+
+#### Role
+
+Choisir la meilleure region candidate pour representer le produit cible de l'annonce.
+
+#### Entrees
+
+- image
+- liste de regions candidates
+- `text_data` venant de `text_processor`
+
+#### Principe
+
+Pour chaque region candidate :
+
+1. extraire le crop
+2. encoder le crop en embedding image
+3. comparer le crop au texte avec CLIP
+4. ajouter un score visuel
+5. ajouter une coherence categorie
+
+#### Formule de score
 
 ```text
-score = 0.6 * clip + 0.25 * visuel + 0.15 * categorie
+score = 0.6 * score_clip + 0.25 * score_visual + 0.15 * score_category
 ```
 
 Ces poids sont stockes dans `config.py` et assumes comme une calibration empirique.
 
-Le module retourne :
+#### Score CLIP
 
-- la bbox gagnante
+- similarite cosinus entre embedding image et embedding texte
+- backend partage avec le reste du pipeline
+
+#### Score visuel
+
+Le score visuel combine :
+
+- aire normalisee
+- centralite
+
+Il favorise les zones :
+
+- suffisamment grandes
+- visuellement centrales
+
+#### Score categorie
+
+Coherence heuristique faible mais utile pour eviter certains faux crops.
+
+Exemple :
+
+- une chaussure minuscule hyper contrastee ne doit pas toujours battre un produit plus grand et mieux cadre
+
+#### Sortie
+
+Le module retourne notamment :
+
+- la bbox selectionnee
 - le crop selectionne
-- un masque optionnel apres `refine_crop`
-- le detail des scores intermediaires pour l'explicabilite
+- les details de scoring
+- le masque GrabCut si disponible
 
-### 5.4 `src/analyzer.py`
+#### Explicabilite
 
-Role :
+En mode debug, l'application peut afficher :
 
-- evaluer la qualite du crop selectionne
+- les regions candidates
+- les scores du selector
+- le backend utilise
+- les sous-composantes du score
 
-Criteres calcules actuellement :
+### 7.5 `src/analyzer.py`
+
+#### Role
+
+Analyser la qualite du crop selectionne.
+
+#### Criteres calcules
 
 - `sharpness`
 - `exposure`
@@ -149,122 +350,388 @@ Criteres calcules actuellement :
 - `effective_resolution`
 - `coherence`
 
-Principes de calcul :
+#### Definition des criteres
 
-- nettete : variance du Laplacien
-- exposition : statistiques d'histogramme et ecart a une zone cible
-- contraste : ecart-type en niveaux de gris
-- balance couleur : deviation inter-canaux
-- resolution effective : taille utile + signal de detail
-- coherence : CLIP(image, texte) + couleur dominante du crop
+##### Nettete
 
-La couleur reste un signal leger dans la coherence.
+- basee sur la variance du Laplacien
+- penalise les images floues
+
+##### Exposition
+
+- basee sur des statistiques de luminance
+- corrigee pour eviter de trop punir des produits naturellement fonces
+
+##### Contraste
+
+- base sur l'ecart-type des niveaux de gris
+- verifie si le produit ressort suffisamment
+
+##### Balance couleurs
+
+- mesure une dominante anormale entre canaux
+- critere volontairement peu punitif
+
+##### Resolution effective
+
+- combine la resolution brute et le niveau de detail utile
+- permet de penaliser une image grande mais tres lisse ou reechantillonnee
+
+##### Coherence image/texte
+
+Combine :
+
+- la similarite CLIP image/texte
+- la coherence entre couleur attendue et couleur dominante
+
+Important :
+
+- la couleur n'est qu'un signal leger
+- CLIP reste la composante principale de la coherence
+
+#### Sorties
 
 Le module retourne :
 
 - les sous-scores 0-100
-- un score global pondere
 - des messages explicatifs
+- un score global pondere
 - des recommandations FR / Darija
 
-### 5.5 `app.py`
+### 7.6 `app.py`
 
-Role :
+#### Role
 
-- exposer le pipeline dans une interface Streamlit simple
+Exposer le pipeline dans une interface Streamlit simple pour :
 
-Modes disponibles :
+- l'analyse unique
+- le batch
+- l'inspection debug
 
-- analyse unique
-- batch dossier
+#### Modes principaux
 
-Affichage prioritaire :
+##### Analyse unique
 
-- crop selectionne
+Entrees :
+
+- image
+- titre
+- description
+
+Affichage :
+
+- crop selectionne en priorite
 - score global
 - criteres en barres
-- coherence image / texte
+- bloc coherence image/texte
 - recommandations
-- debug optionnel
 
-## 6. Configuration centrale
+##### Batch
 
-Le fichier `config.py` centralise :
+Permet de traiter un dossier d'images et d'exporter un tableau recapitulatif.
 
-- les chemins
-- les categories autorisees
-- les poids du selector
-- les seuils de qualite
-- la configuration du fallback DINO
-- les poids du score global
+##### Debug
 
-Ce choix limite la dispersion de constantes magiques dans le projet.
+Affiche :
 
-## 7. Donnees
+- regions candidates
+- scores du selector
+- donnees texte
+- resultat du fallback DINO si active
 
-La structure cible des donnees est :
+## 8. Configuration centrale
+
+Le fichier `config.py` contient les constantes globales du projet.
+
+### Ce qui y est centralise
+
+- chemins du dataset
+- categories autorisees
+- poids du selector
+- poids du score global
+- seuils de criteres
+- configuration DINO
+- configuration batch / application
+
+### Interet
+
+Ce choix permet :
+
+- d'eviter les constantes magiques dispersees
+- de documenter les decisions empiriques
+- de faciliter la calibration
+
+## 9. Dataset final
+
+## 9.1 Structure
 
 ```text
 dataset/
-  originals/
-  clean_references/
-  degraded/
-  metadata.csv
+|- originals/
+|  |- shoes/
+|  |- clothing/
+|  `- portable_electronics/
+|- degraded/
+|- annotations/
+|- metadata.csv
+`- degraded_metadata.csv
 ```
 
-Le protocole cible est :
+## 9.2 Categories retenues
 
-- bonnes images propres de reference
-- versions degradees generees automatiquement
-- verite-terrain connue pour chaque degradation
+- `shoes`
+- `clothing`
+- `portable_electronics`
 
-Etat reel du depot :
+## 9.3 Contenu du dataset
 
-- `dataset/` est maintenant la source de travail par defaut
-- `dataset/originals/` contient le dataset final propre
-- `dataset/degraded/` contient les degradations controlees
-- `metadata.csv` et `degraded_metadata.csv` sont disponibles
+Le dataset final contient :
 
-## 8. Evaluation
+- `180` images propres dans `dataset/originals/`
+- `3240` images degradees dans `dataset/degraded/`
 
-Deux scripts principaux existent pour la validation :
+Repartition :
 
-### `evaluate_analyzer.py`
+- `60` images par categorie pour les originaux
+- degradations controlees appliquees a toutes les images propres
 
-- mesure la sensibilite des criteres sur `dataset/degraded/`
-- compare image propre vs image degradee
-- produit des tableaux de baisse moyenne par critere
+## 9.4 Format de `metadata.csv`
 
-### `evaluate_full.py`
+Colonnes principales :
 
-- prepare un echantillon annotable humainement
-- exporte un CSV de comparaison
-- calcule une correlation de Spearman si les annotations humaines sont remplies
-- consolide les sorties d'evaluation dans un rapport
+- `image_id`
+- `filename`
+- `filepath`
+- `category`
+- `source_dataset`
+- `title`
+- `description`
+- `width`
+- `height`
+- `source_type`
+- `degradation_type`
+- `degradation_level`
+- `human_score`
+- `notes`
 
-## 9. Forces du projet
+## 9.5 Format de `degraded_metadata.csv`
 
-- architecture zero-shot defendable en soutenance
-- explication visible du choix de crop
-- sous-scores interpretables
-- cout de developpement raisonnable pour 2 mois
-- forte reutilisabilite de briques standard
+Colonnes principales :
 
-## 10. Limites actuelles
+- image degradee
+- image source
+- type de degradation
+- niveau de degradation
 
-- la qualite du fallback regions candidates depend du type d'image
-- la sensibilite est tres bonne sur le flou mais plus moderee sur `lowres` et `bad_crop`
-- la correlation humaine finale reste significative mais moderee
+## 10. Generation des degradations
 
-## 11. Conclusion
+Le script principal est :
 
-Le coeur du projet n'est pas l'entrainement d'un classifieur de qualite.
-La valeur du systeme reside dans la combinaison explicable entre :
+- `generate_degraded.py`
+
+### Types de degradation
+
+- flou gaussien
+- sous-exposition
+- sur-exposition
+- mauvais recadrage
+- basse resolution
+- compression JPEG
+
+### Objectif scientifique
+
+Utiliser des degradations controlees pour obtenir :
+
+- une verite-terrain exacte
+- une comparaison propre entre image reference et image degradee
+- un protocole de validation defendable
+
+## 11. Evaluation experimentale
+
+## 11.1 `evaluate_analyzer.py`
+
+Role :
+
+- mesurer la sensibilite des criteres sur les images degradees
+
+Principe :
+
+1. analyser une image propre
+2. analyser sa version degradee
+3. comparer la baisse du critere cible
+
+Sorties :
+
+- `analyzer_sensitivity.csv`
+- `analyzer_sensitivity_full_matrix.csv`
+
+## 11.2 `evaluate_full.py`
+
+Role :
+
+- consolider l'evaluation complete du projet
+
+Fonctions :
+
+- generation d'un echantillon de 50 images pour jugement humain
+- export du CSV d'annotation
+- calcul de la correlation de Spearman
+- generation d'un rapport consolide
+
+Sorties importantes :
+
+- `human_evaluation_template.csv`
+- `evaluation_report.md`
+- `spearman_correlation.png`
+
+## 11.3 Resultat final de validation humaine
+
+Le projet inclut une evaluation humaine finale sur 50 images.
+
+Resultat principal :
+
+- Spearman rho positif et significatif
+
+Interpretation :
+
+- le score automatique suit partiellement le jugement humain
+- la corrrelation reste moderee, ce qui est coherent avec une approche zero-shot explicable
+
+## 12. Flux d'execution typiques
+
+### 12.1 Lancer l'application
+
+```bash
+streamlit run app.py
+```
+
+### 12.2 Construire le dataset final
+
+```bash
+python scripts/build_final_dataset.py --verbose
+```
+
+### 12.3 Generer les degradations
+
+```bash
+python generate_degraded.py
+```
+
+### 12.4 Lancer l'evaluation des criteres
+
+```bash
+python evaluate_analyzer.py
+```
+
+### 12.5 Lancer l'evaluation complete
+
+```bash
+python evaluate_full.py
+```
+
+## 13. Dependances
+
+Dependances Python importantes :
+
+- `opencv-contrib-python`
+- `numpy`
+- `pandas`
+- `pillow`
+- `scipy`
+- `matplotlib`
+- `streamlit`
+- `spacy`
+- `rapidfuzz`
+- `sentence-transformers`
+- `torch`
+- `torchvision`
+- `transformers`
+
+### Note spaCy
+
+Le modele francais doit etre installe separement :
+
+```bash
+python -m spacy download fr_core_news_md
+```
+
+## 14. Decisions d'implementation importantes
+
+### Pourquoi le texte est-il la verite ?
+
+Parce que dans une annonce e-commerce :
+
+- le titre et la description sont deja disponibles
+- ils sont plus fiables que de l'OCR sur une image variable
+- ils permettent de cibler le bon produit parmi plusieurs regions
+
+### Pourquoi pas d'OCR ?
+
+Parce que l'OCR :
+
+- n'est pas necessaire pour le coeur du probleme
+- introduit une complexite supplementaire
+- serait plus fragile sur des images tres heterogenes
+
+### Pourquoi RGB plutot que HSV pour la couleur ?
+
+Parce que la couleur n'est qu'un signal secondaire.
+
+Le choix de RGB est pragmatique :
+
+- simple
+- compatible avec le reste du pipeline image
+- suffisant pour une coherence couleur legere
+
+HSV peut etre cite comme perspective pour une comparaison couleur plus robuste a l'eclairage.
+
+### Pourquoi CLIP ?
+
+CLIP permet :
+
+- de relier directement image et texte
+- de selectionner le bon crop
+- de mesurer une forme simple de coherence semantique
+
+## 15. Forces du projet
+
+- zero-shot defendable
+- architecture multimodale claire
+- explicabilite forte
+- dataset degrade a verite-terrain connue
+- application demonstrable
+- evaluation automatique et humaine
+
+## 16. Limites du projet
+
+- performance variable selon les categories et les scenes
+- sensibilite tres bonne sur le flou, plus moderee sur `lowres` et `bad_crop`
+- extraction de marque encore heuristique
+- extraction couleur simplifiee
+- scope limite a trois familles
+- pas de generalisation garantie hors distribution
+
+## 17. Perspectives
+
+Plusieurs extensions sont possibles :
+
+- ameliorer la robustesse couleur avec HSV
+- enrichir les dictionnaires et la taxonomie de categories
+- renforcer la qualite du region proposal avec un fallback plus intelligent
+- etendre a d'autres familles de produits
+- ajouter un assistant d'annonce optionnel base sur LLM vision
+- proposer un module separable de generation de titre / description / conseils vendeur
+
+## 18. Conclusion
+
+Le coeur de ce projet n'est pas l'entrainement d'un nouveau modele de qualite d'image.
+Sa valeur vient de la combinaison entre :
 
 - texte de l'annonce
-- selection zero-shot du bon produit
-- mesures visuelles interpretables
+- region proposal zero-shot
+- selection du bon produit via CLIP et heuristiques
+- analyse de qualite interpretable
 - recommandations actionnables
 
-Le projet constitue donc un systeme zero-shot multimodal explicable pour l'evaluation
-de photos produits e-commerce.
+Le resultat final est un systeme zero-shot multimodal explicable, adapte a un cadre PFE,
+coherent avec un delai court, et suffisamment robuste pour etre demontre, evalue et defendu.
