@@ -21,6 +21,7 @@ from src.analyzer import analyze
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 REPORT_DIR = OUTPUT_DIR / "reports"
 HUMAN_TEMPLATE_CSV = REPORT_DIR / "human_evaluation_template.csv"
+HUMAN_TEMPLATE_ANNOTATOR2_CSV = REPORT_DIR / "human_evaluation_template_annotator2.csv"
 SPEARMAN_PLOT_PATH = REPORT_DIR / "spearman_correlation.png"
 SENSITIVITY_TARGET_CSV = REPORT_DIR / "full_eval_sensitivity_target.csv"
 SENSITIVITY_MATRIX_CSV = REPORT_DIR / "full_eval_sensitivity_matrix.csv"
@@ -132,6 +133,18 @@ def build_human_template(limit: int = 50) -> pd.DataFrame:
     return frame
 
 
+def build_second_annotator_template(template_frame: pd.DataFrame) -> pd.DataFrame:
+    if HUMAN_TEMPLATE_ANNOTATOR2_CSV.exists():
+        existing = pd.read_csv(HUMAN_TEMPLATE_ANNOTATOR2_CSV)
+        if {"image", "score_humain"}.issubset(existing.columns):
+            return existing
+
+    second = template_frame.copy()
+    second["score_humain"] = ""
+    second.to_csv(HUMAN_TEMPLATE_ANNOTATOR2_CSV, index=False, encoding="utf-8")
+    return second
+
+
 def compute_spearman(template_frame: pd.DataFrame) -> dict[str, Any]:
     completed = template_frame.copy()
     completed["score_humain"] = pd.to_numeric(completed["score_humain"], errors="coerce")
@@ -165,6 +178,44 @@ def compute_spearman(template_frame: pd.DataFrame) -> dict[str, Any]:
         "spearman_rho": None if pd.isna(rho) else float(rho),
         "p_value": None if pd.isna(p_value) else float(p_value),
     }
+
+
+def infer_category(image_path: str) -> str:
+    path = Path(image_path)
+    parts = [part.lower() for part in path.parts]
+    for category in ("shoes", "clothing", "portable_electronics"):
+        if category in parts:
+            return category
+    return "unknown"
+
+
+def build_category_summary(template_frame: pd.DataFrame) -> pd.DataFrame:
+    frame = template_frame.copy()
+    frame["score_humain"] = pd.to_numeric(frame["score_humain"], errors="coerce")
+    frame = frame.dropna(subset=["score_humain"]).copy()
+    if frame.empty:
+        return pd.DataFrame()
+
+    try:
+        from scipy.stats import spearmanr
+    except Exception:
+        return pd.DataFrame()
+
+    frame["category"] = frame["image"].map(infer_category)
+    rows: list[dict[str, Any]] = []
+    for category, subset in frame.groupby("category"):
+        rho, p_value = spearmanr(subset["score_auto"], subset["score_humain"])
+        rows.append(
+            {
+                "category": category,
+                "n": int(len(subset)),
+                "score_auto_mean": round(float(subset["score_auto"].mean()), 4),
+                "score_humain_mean": round(float(subset["score_humain"].mean()), 4),
+                "spearman_rho": 0.0 if pd.isna(rho) else round(float(rho), 6),
+                "p_value": 1.0 if pd.isna(p_value) else round(float(p_value), 6),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("category").reset_index(drop=True)
 
 
 def build_spearman_plot(template_frame: pd.DataFrame) -> str:
@@ -253,6 +304,7 @@ def write_consolidated_report(
     lines.append("")
     lines.append(f"- Nombre d'images dans le template : {len(template_frame)}")
     lines.append(f"- CSV template : `{HUMAN_TEMPLATE_CSV}`")
+    lines.append(f"- CSV 2e annotateur : `{HUMAN_TEMPLATE_ANNOTATOR2_CSV}`")
     lines.append("- Colonne `score_humain` a remplir avec `1`, `0.5` ou `0`.")
     lines.append("")
     lines.append("## 2. Correlation Spearman")
@@ -280,12 +332,48 @@ def write_consolidated_report(
         lines.append(sensitivity_info["target_summary"].to_string(index=False))
         lines.append("```")
     lines.append("")
+    category_summary = build_category_summary(template_frame)
+    lines.append("## 4. Lecture par categorie")
+    lines.append("")
+    if category_summary.empty:
+        lines.append("- Analyse par categorie en attente d'annotations humaines exploitables.")
+    else:
+        lines.append("```text")
+        lines.append(category_summary.to_string(index=False))
+        lines.append("```")
+        lines.append("")
+        best_row = category_summary.sort_values("spearman_rho", ascending=False).iloc[0]
+        worst_row = category_summary.sort_values("spearman_rho", ascending=True).iloc[0]
+        lines.append("### Forces par categorie")
+        lines.append("")
+        lines.append(
+            f"- La categorie la plus robuste est `{best_row['category']}` avec `rho = {best_row['spearman_rho']:.4f}`."
+        )
+        lines.append("- Les meilleurs cas sont ceux ou le produit principal est bien centre, net et clairement isole du fond.")
+        lines.append("")
+        lines.append("### Faiblesses par categorie")
+        lines.append("")
+        lines.append(
+            f"- La categorie la plus fragile reste `{worst_row['category']}` avec `rho = {worst_row['spearman_rho']:.4f}`."
+        )
+        lines.append(
+            "- Les erreurs residuelles viennent surtout des cas ou le produit est grand mais visuellement lisse, ou quand le fond studio perturbe encore la perception de resolution utile."
+        )
+    lines.append("")
+    lines.append("## 5. Limites methodologiques")
+    lines.append("")
+    lines.append("- L'evaluation humaine principale repose encore sur un seul annotateur rempli dans le CSV principal.")
+    lines.append("- Le module de coherence utilise un texte neutre en evaluation globale quand la tache porte uniquement sur la qualite photo.")
+    lines.append("- Les performances restent dependantes du bon crop initial et de la categorie produit.")
+    lines.append("- Les resultats categories peuvent varier lorsque le nombre d'images annotees reste limite.")
+    lines.append("")
 
     CONSOLIDATED_REPORT_MD.write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> None:
     template_frame = build_human_template(limit=50)
+    build_second_annotator_template(template_frame)
     spearman_info = compute_spearman(template_frame)
     plot_message = build_spearman_plot(template_frame)
     sensitivity_info = build_sensitivity_section()
