@@ -32,17 +32,12 @@ def main() -> None:
         & (frame["image"].str.contains("originals", case=False, na=False))
     ].copy()
     if difficult.empty:
-        report = [
-            "# Test DINO fallback",
-            "",
-            "- Statut : pending",
-            "- Message : aucun cas difficile exploitable dans disagreements.csv",
-        ]
-        DINO_FALLBACK_MD.write_text("\n".join(report), encoding="utf-8")
-        print("\n".join(report))
-        return
+        difficult = frame[frame["image"].str.contains("originals", case=False, na=False)].copy()
+        difficult["abs_gap"] = difficult["gap_auto_minus_human"].abs()
+        difficult = difficult.sort_values("abs_gap", ascending=False).head(8)
+    else:
+        difficult = difficult.sort_values("gap_auto_minus_human").head(8)
 
-    difficult = difficult.sort_values("gap_auto_minus_human").head(8)
     rows: list[dict[str, object]] = []
     original_flag = REGION_PROPOSAL_CONFIG["use_dino"]
     try:
@@ -86,7 +81,7 @@ def main() -> None:
         "",
         "## Lecture",
         "",
-        "- Ce test compare la saliency par defaut avec DINO uniquement sur des cas difficiles ou l'humain note mieux que la machine.",
+        "- Ce test compare la saliency par defaut avec DINO sur un petit echantillon de cas difficiles : prioritairement les `human_high_auto_low`, sinon les plus gros desaccords absolus.",
         "- Il sert de preuve experimentale pour la soutenance : le fallback existe, il est testable, mais il n'est active par defaut que si son gain est juge utile.",
     ]
     if dino_available_cases == 0:
