@@ -113,7 +113,13 @@ def _encode_image_embedding(image_bgr: np.ndarray) -> np.ndarray:
 
 def _sharpness_score(gray: np.ndarray) -> dict[str, Any]:
     thresholds = QUALITY_THRESHOLDS["sharpness"]
-    lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    lap = cv2.Laplacian(gray, cv2.CV_64F)
+    edges = cv2.Canny(gray, 80, 160) > 0
+    informative_mask = (gray < 245) | edges
+    if float(np.mean(informative_mask)) >= 0.12:
+        lap_var = float(lap[informative_mask].var())
+    else:
+        lap_var = float(lap.var())
     score = _linear_score(lap_var, thresholds["very_blurry_max"], thresholds["excellent_min"])
 
     if lap_var < thresholds["very_blurry_max"]:
