@@ -31,6 +31,7 @@ CRITERION_LABELS = {
     "contrast": "Contraste",
     "color_balance": "Balance couleurs",
     "effective_resolution": "Resolution effective",
+    "framing": "Cadrage produit",
     "coherence": "Coherence image/texte",
 }
 
@@ -126,7 +127,12 @@ def _run_pipeline(image_rgb: np.ndarray, title: str, description: str) -> dict[s
     text_data = process_text(title, description)
     candidate_boxes = propose_regions(image_rgb[:, :, ::-1])
     selection = select_product(image_rgb[:, :, ::-1], candidate_boxes, text_data)
-    analysis = analyze(selection["selected_crop"], text_data=text_data)
+    analysis = analyze(
+        selection["selected_crop"],
+        text_data=text_data,
+        selected_bbox=selection["selected_bbox"],
+        original_shape=image_rgb.shape,
+    )
     return {
         "text_data": text_data,
         "candidate_boxes": candidate_boxes,
@@ -289,6 +295,7 @@ def _batch_record(path: Path, title: str, description: str) -> dict[str, Any]:
         "contrast": analysis["criteria"]["contrast"]["score"],
         "color_balance": analysis["criteria"]["color_balance"]["score"],
         "effective_resolution": analysis["criteria"]["effective_resolution"]["score"],
+        "framing": analysis["criteria"]["framing"]["score"],
         "selected_bbox": selection["selected_bbox"],
     }
 
@@ -302,6 +309,7 @@ def _styled_batch_table(frame: pd.DataFrame):
         "contrast",
         "color_balance",
         "effective_resolution",
+        "framing",
     ]
 
     def style_score(value: Any) -> str:
