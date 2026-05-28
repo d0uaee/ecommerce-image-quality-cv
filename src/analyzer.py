@@ -439,6 +439,21 @@ def _coherence_score(image_bgr: np.ndarray, text_data: dict[str, Any] | None) ->
         text_data.get("text_embedding", np.zeros(EMBEDDING_VECTOR_SIZE, dtype=np.float32)),
         dtype=np.float32,
     ).reshape(-1)
+    clean_text = str(text_data.get("clean_text", "") or "").strip()
+    if not clean_text and float(np.linalg.norm(text_embedding)) == 0.0:
+        return _criterion(
+            "coherence",
+            thresholds["color_missing_score"],
+            {
+                "clip_similarity": 0.0,
+                "clip_score": thresholds["color_missing_score"],
+                "expected_color": None,
+                "dominant_color": _closest_color_name(image_bgr),
+                "color_score": thresholds["color_missing_score"],
+            },
+            "Coherence non evaluable finement : texte annonce absent.",
+        )
+
     image_embedding = _encode_image_embedding(image_bgr)
     clip_similarity = _cosine_similarity(image_embedding, text_embedding)
     clip_score = _linear_score(clip_similarity, 0.35, 0.75)
