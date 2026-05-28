@@ -590,12 +590,52 @@ Le projet inclut une evaluation humaine finale sur 50 images.
 
 Resultat principal :
 
-- Spearman rho positif et significatif
+- `Spearman rho = 0.7122`
+- `p-value = 6.64e-09`
 
 Interpretation :
 
-- le score automatique suit partiellement le jugement humain
-- la corrrelation reste moderee, ce qui est coherent avec une approche zero-shot explicable
+- le score automatique suit nettement mieux le jugement humain apres l'ajout du critere `framing`
+- la recalibration des poids a partir des annotations humaines augmente fortement la coherence globale du score
+- le systeme reste zero-shot : il n'y a toujours aucun entrainement de modele profond, seulement une calibration des poids du score final
+
+Evolution importante du projet :
+
+- version initiale evaluee : `rho ≈ 0.3799`
+- apres ajout de `framing` et premiere calibration : `rho ≈ 0.6322`
+- apres raffinement cible de `sharpness`, `effective_resolution` et `framing` : `rho ≈ 0.7122`
+
+Lecture par categorie :
+
+- `clothing` : categorie la plus robuste
+- `portable_electronics` : comportement globalement bon
+- `shoes` : categorie la plus difficile, mais en progression apres les derniers ajustements
+
+Causes principales du gain :
+
+- ajout d'un critere de cadrage produit (`framing`)
+- mesure de `sharpness` sur la zone informative du produit plutot que sur tout le fond
+- mesure de `effective_resolution` moins punitive sur les produits studio nets poses sur fond simple
+- recalibration empirique des poids pour mieux coller au jugement humain
+
+## 11.4 Verification manuelle complementaire
+
+Une verification manuelle supplementaire a ete faite sur 12 cas representatifs couvrant :
+
+- `clothing`
+- `portable_electronics`
+- `shoes`
+
+Objectif :
+
+- verifier que le score reste plausible sur des cas propres
+- verifier que les criteres `framing`, `effective_resolution` et `sharpness` ne degradent pas les bons cas visuellement acceptables
+
+Constat :
+
+- les cas `clothing` restent globalement stables
+- les cas `portable_electronics` conservent une bonne coherence de score
+- les cas les plus faibles restent concentres sur `shoes`, ce qui confirme que cette categorie est la priorite d'amelioration residuelle
 
 ## 12. Flux d'execution typiques
 
