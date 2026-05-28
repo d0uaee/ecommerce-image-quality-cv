@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import ANALYZER_WEIGHTS
 from evaluate_full import HUMAN_TEMPLATE_CSV, NEUTRAL_TEXT_DATA
@@ -22,7 +27,6 @@ CRITERIA = [
     "coherence",
 ]
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPORT_DIR = PROJECT_ROOT / "output" / "reports"
 CALIBRATION_CSV = REPORT_DIR / "weight_calibration_results.csv"
 CALIBRATION_JSON = REPORT_DIR / "best_weight_calibration.json"
