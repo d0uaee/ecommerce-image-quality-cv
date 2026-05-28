@@ -46,12 +46,13 @@ REGION_PROPOSAL_CONFIG = {
 
 
 ANALYZER_WEIGHTS = {
-    "sharpness": 0.24,
-    "exposure": 0.20,
-    "contrast": 0.18,
-    "color_balance": 0.08,
-    "effective_resolution": 0.15,
-    "coherence": 0.15,
+    "sharpness": 0.22,
+    "exposure": 0.17,
+    "contrast": 0.13,
+    "color_balance": 0.06,
+    "effective_resolution": 0.17,
+    "framing": 0.13,
+    "coherence": 0.12,
 }
 
 
@@ -87,6 +88,13 @@ QUALITY_THRESHOLDS = {
         "recommended_height": 1000,
         "detail_soft_min": 0.035,
         "detail_good_min": 0.085,
+    },
+    "framing": {
+        "too_small_ratio": 0.14,
+        "good_ratio_min": 0.24,
+        "ideal_ratio_max": 0.70,
+        "edge_margin_min": 0.045,
+        "center_tolerance": 0.14,
     },
     "coherence": {
         "clip_weight": 0.85,
