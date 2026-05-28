@@ -130,14 +130,21 @@ def _sharpness_score(gray: np.ndarray) -> dict[str, Any]:
 
 def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
     thresholds = QUALITY_THRESHOLDS["exposure"]
-    mean_brightness = float(gray.mean())
-    std_brightness = float(gray.std())
-    p10 = float(np.percentile(gray, 10))
-    p90 = float(np.percentile(gray, 90))
-    p05 = float(np.percentile(gray, 5))
-    p95 = float(np.percentile(gray, 95))
-    black_clip_ratio = float(np.mean(gray <= 3))
-    highlight_ratio = float(np.mean(gray >= 245))
+    edges = cv2.Canny(gray, 80, 160) > 0
+    informative_mask = (gray < 245) | edges
+    informative_ratio = float(np.mean(informative_mask))
+    stats_pixels = gray[informative_mask] if informative_ratio >= 0.12 else gray.reshape(-1)
+
+    mean_brightness = float(stats_pixels.mean())
+    std_brightness = float(stats_pixels.std())
+    p10 = float(np.percentile(stats_pixels, 10))
+    p90 = float(np.percentile(stats_pixels, 90))
+    p05 = float(np.percentile(stats_pixels, 5))
+    p95 = float(np.percentile(stats_pixels, 95))
+    black_clip_ratio = float(np.mean(stats_pixels <= 3))
+    highlight_ratio = float(np.mean(stats_pixels >= 245))
+    global_mean = float(gray.mean())
+    global_highlight_ratio = float(np.mean(gray >= 245))
     target = thresholds["target_mean"]
     deviation = abs(mean_brightness - target)
     dynamic_range = p95 - p05
@@ -168,6 +175,11 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
             score -= (90.0 - dynamic_range) * 0.24
         score -= highlight_ratio * 55.0
 
+    if informative_ratio >= 0.20 and global_highlight_ratio > 0.45 and p10 < 160 and dynamic_range >= 90:
+        score += min(32.0, (global_highlight_ratio - 0.45) * 42.0)
+    if informative_ratio >= 0.20 and global_mean > 210 and mean_brightness <= 175:
+        score += min(18.0, (global_mean - 210.0) * 0.35)
+
     final_score = _clamp(score)
 
     if mean_brightness < thresholds["extreme_dark"] and p90 < 170:
@@ -193,6 +205,9 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
             "p95": round(p95, 2),
             "black_clip_ratio": round(black_clip_ratio, 4),
             "highlight_ratio": round(highlight_ratio, 4),
+            "global_mean_brightness": round(global_mean, 2),
+            "global_highlight_ratio": round(global_highlight_ratio, 4),
+            "informative_ratio": round(informative_ratio, 4),
             "dynamic_range": round(dynamic_range, 2),
         },
         message,
