@@ -94,8 +94,24 @@ def select_evaluation_images(limit: int = 50) -> list[dict[str, Any]]:
 def build_human_template(limit: int = 50) -> pd.DataFrame:
     if HUMAN_TEMPLATE_CSV.exists():
         existing = pd.read_csv(HUMAN_TEMPLATE_CSV)
-        if "score_humain" in existing.columns and pd.to_numeric(existing["score_humain"], errors="coerce").notna().any():
-            return existing
+        if {"image", "score_humain"}.issubset(existing.columns):
+            refreshed_rows: list[dict[str, Any]] = []
+            for _, row in existing.iterrows():
+                image_path = Path(str(row["image"]))
+                if not image_path.is_absolute():
+                    image_path = (Path.cwd() / image_path).resolve()
+                analysis = analyze(image_path, text_data=NEUTRAL_TEXT_DATA)
+                refreshed_rows.append(
+                    {
+                        "image": str(row["image"]).replace("\\", "/"),
+                        "source_type": row.get("source_type", ""),
+                        "score_auto": round(float(analysis["global_score"]) / 100.0, 4),
+                        "score_humain": row.get("score_humain", ""),
+                    }
+                )
+            refreshed = pd.DataFrame(refreshed_rows)
+            refreshed.to_csv(HUMAN_TEMPLATE_CSV, index=False, encoding="utf-8")
+            return refreshed
 
     rows: list[dict[str, Any]] = []
     for item in select_evaluation_images(limit):
