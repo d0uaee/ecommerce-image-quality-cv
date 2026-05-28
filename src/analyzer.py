@@ -36,6 +36,10 @@ ADVICE_TEMPLATES = {
         "fr": "Resolution effective limitee : evite les captures d'ecran et garde l'image originale en grande taille.",
         "darija": "Resolution ma kfayach: ma تستعملch screenshot w khlli tsowira l'asliya b taille kbira.",
     },
+    "framing": {
+        "fr": "Cadrage a corriger : agrandis le produit dans l'image, recentre-le et evite qu'il touche les bords.",
+        "darija": "Lcadre khaso tetslah: kber lproduit f tsowira, wassetou mzyan, w ma تخليش yls9 l'jnab.",
+    },
     "coherence": {
         "fr": "Coherence produit/texte a renforcer : garde un crop centre sur le bon produit et aligne mieux l'image avec l'annonce.",
         "darija": "Kayn khlat bin tswira w texte: khalli crop mrattez 3la nafs lproduit w waffe9 tswira m3a l'annonce.",
@@ -172,7 +176,7 @@ def _exposure_score(gray: np.ndarray) -> dict[str, Any]:
         message = "Surexposition forte : les hautes lumieres sont brulees."
     elif final_score < 45.0:
         message = "Exposition a corriger : l'image parait trop sombre ou desequilibree."
-    elif deviation > thresholds["tolerance_ok"]:
+    elif final_score < 60.0:
         message = "Exposition moyenne : la lumiere n'est pas encore bien equilibree."
     else:
         message = "Exposition maitrisee : la luminosite globale est correcte."
@@ -303,6 +307,103 @@ def _effective_resolution_score(gray: np.ndarray) -> dict[str, Any]:
     )
 
 
+def _framing_thresholds() -> dict[str, float]:
+    thresholds = QUALITY_THRESHOLDS.get("framing", {})
+    return {
+        "too_small_ratio": float(thresholds.get("too_small_ratio", 0.14)),
+        "good_ratio_min": float(thresholds.get("good_ratio_min", 0.24)),
+        "ideal_ratio_max": float(thresholds.get("ideal_ratio_max", 0.70)),
+        "edge_margin_min": float(thresholds.get("edge_margin_min", 0.045)),
+        "center_tolerance": float(thresholds.get("center_tolerance", 0.14)),
+    }
+
+
+def _resolve_bbox_context(
+    image_bgr: np.ndarray,
+    selected_bbox: tuple[int, int, int, int] | list[int] | None,
+) -> tuple[int, int, int, int]:
+    height, width = image_bgr.shape[:2]
+    if selected_bbox is not None and len(selected_bbox) == 4:
+        x1, y1, x2, y2 = [int(v) for v in selected_bbox]
+        x1 = max(0, min(width - 1, x1))
+        y1 = max(0, min(height - 1, y1))
+        x2 = max(x1 + 1, min(width, x2))
+        y2 = max(y1 + 1, min(height, y2))
+        return x1, y1, x2, y2
+
+    candidate_regions = propose_regions(image_bgr)
+    if candidate_regions:
+        x1, y1, x2, y2 = candidate_regions[0]["bbox"]
+        return int(x1), int(y1), int(x2), int(y2)
+
+    return 0, 0, width, height
+
+
+def _framing_score(
+    image_bgr: np.ndarray,
+    selected_bbox: tuple[int, int, int, int] | list[int] | None = None,
+) -> dict[str, Any]:
+    thresholds = _framing_thresholds()
+    height, width = image_bgr.shape[:2]
+    image_area = float(max(1, width * height))
+    x1, y1, x2, y2 = _resolve_bbox_context(image_bgr, selected_bbox)
+    crop_w = max(1, x2 - x1)
+    crop_h = max(1, y2 - y1)
+    crop_area = float(crop_w * crop_h)
+    crop_ratio = crop_area / image_area
+
+    cx = (x1 + x2) / 2.0
+    cy = (y1 + y2) / 2.0
+    image_cx = width / 2.0
+    image_cy = height / 2.0
+    offset_x = abs(cx - image_cx) / max(1.0, width / 2.0)
+    offset_y = abs(cy - image_cy) / max(1.0, height / 2.0)
+    center_offset = float((offset_x + offset_y) / 2.0)
+
+    margin_left = x1 / max(1.0, width)
+    margin_top = y1 / max(1.0, height)
+    margin_right = (width - x2) / max(1.0, width)
+    margin_bottom = (height - y2) / max(1.0, height)
+    min_margin = float(min(margin_left, margin_right, margin_top, margin_bottom))
+
+    size_score = _linear_score(crop_ratio, thresholds["too_small_ratio"], thresholds["good_ratio_min"])
+    if crop_ratio > thresholds["ideal_ratio_max"]:
+        overflow = (crop_ratio - thresholds["ideal_ratio_max"]) / max(0.01, 1.0 - thresholds["ideal_ratio_max"])
+        size_score -= overflow * 35.0
+
+    center_score = 100.0 - _clamp((center_offset / max(0.01, thresholds["center_tolerance"])) * 100.0)
+    margin_score = _linear_score(min_margin, 0.0, thresholds["edge_margin_min"])
+
+    score = 0.52 * size_score + 0.28 * center_score + 0.20 * margin_score
+    if crop_ratio < thresholds["too_small_ratio"]:
+        score -= (thresholds["too_small_ratio"] - crop_ratio) * 200.0
+    if min_margin <= 0.01:
+        score -= 12.0
+
+    final_score = _clamp(score)
+
+    if crop_ratio < thresholds["too_small_ratio"]:
+        message = "Cadrage faible : le produit occupe trop peu de place dans l'image."
+    elif min_margin <= 0.01:
+        message = "Cadrage serre : le produit touche presque les bords."
+    elif center_offset > thresholds["center_tolerance"]:
+        message = "Cadrage moyen : le produit est un peu decentre."
+    else:
+        message = "Cadrage correct : le produit est bien mis en avant."
+
+    return _criterion(
+        "framing",
+        final_score,
+        {
+            "bbox": [int(x1), int(y1), int(x2), int(y2)],
+            "crop_ratio": round(crop_ratio, 4),
+            "center_offset": round(center_offset, 4),
+            "min_margin": round(min_margin, 4),
+        },
+        message,
+    )
+
+
 def _coherence_score(image_bgr: np.ndarray, text_data: dict[str, Any] | None) -> dict[str, Any]:
     thresholds = QUALITY_THRESHOLDS["coherence"]
     if not text_data:
@@ -362,6 +463,8 @@ def _coherence_score(image_bgr: np.ndarray, text_data: dict[str, Any] | None) ->
 def global_score(criteria: dict[str, dict[str, Any]]) -> float:
     total = 0.0
     for name, weight in ANALYZER_WEIGHTS.items():
+        if name not in criteria:
+            continue
         total += criteria[name]["score"] * weight
     return round(total, 2)
 
@@ -386,9 +489,21 @@ def _build_advice(criteria: dict[str, dict[str, Any]]) -> tuple[list[str], list[
     return advice_fr, advice_darija
 
 
-def analyze(image_input: ImageInput, text_data: dict[str, Any] | None = None) -> dict[str, Any]:
+def analyze(
+    image_input: ImageInput,
+    text_data: dict[str, Any] | None = None,
+    selected_bbox: tuple[int, int, int, int] | list[int] | None = None,
+    original_shape: tuple[int, ...] | None = None,
+) -> dict[str, Any]:
     image_bgr = _load_image(image_input)
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+
+    framing_context = image_bgr
+    if original_shape is not None and selected_bbox is not None and len(original_shape) >= 2:
+        try:
+            framing_context = np.zeros((int(original_shape[0]), int(original_shape[1]), 3), dtype=np.uint8)
+        except Exception:
+            framing_context = image_bgr
 
     criteria = {
         "sharpness": _sharpness_score(gray),
@@ -396,6 +511,7 @@ def analyze(image_input: ImageInput, text_data: dict[str, Any] | None = None) ->
         "contrast": _contrast_score(gray),
         "color_balance": _color_balance_score(image_bgr),
         "effective_resolution": _effective_resolution_score(gray),
+        "framing": _framing_score(framing_context, selected_bbox=selected_bbox),
         "coherence": _coherence_score(image_bgr, text_data),
     }
 
@@ -423,4 +539,9 @@ def analyze(image_input: ImageInput, text_data: dict[str, Any] | None = None) ->
 
 def analyze_image(image_input: ImageInput, *args: Any, **kwargs: Any) -> dict[str, Any]:
     text_data = kwargs.get("text_data")
-    return analyze(image_input, text_data=text_data)
+    return analyze(
+        image_input,
+        text_data=text_data,
+        selected_bbox=kwargs.get("selected_bbox"),
+        original_shape=kwargs.get("original_shape"),
+    )
