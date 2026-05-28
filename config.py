@@ -46,13 +46,13 @@ REGION_PROPOSAL_CONFIG = {
 
 
 ANALYZER_WEIGHTS = {
-    "sharpness": 0.22,
-    "exposure": 0.17,
-    "contrast": 0.13,
-    "color_balance": 0.06,
-    "effective_resolution": 0.17,
-    "framing": 0.13,
-    "coherence": 0.12,
+    "sharpness": 0.1914,
+    "exposure": 0.0251,
+    "contrast": 0.2214,
+    "color_balance": 0.0307,
+    "effective_resolution": 0.1299,
+    "framing": 0.3007,
+    "coherence": 0.1008,
 }
 
 
