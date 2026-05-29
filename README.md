@@ -153,3 +153,12 @@ Elle vient de l'architecture zero-shot multimodale et de l'explicabilite :
 - sous-scores qualite lisibles
 - coherence image / texte
 - recommandations actionnables
+
+## Pour lecture professorale
+
+Pour un acces direct au livrable final, voir aussi :
+
+- `LIVRABLE_PROF.md`
+- `output/reports/evaluation_report.md`
+- `output/reports/multi_annotator_report.md`
+- `deliverables/presentation_soutenance_pfe_zero_shot_1h.pptx`
