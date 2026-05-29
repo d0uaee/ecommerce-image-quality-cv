@@ -117,6 +117,24 @@ ASSISTANT_CONFIG = {
     "history_limit": 20,
     "enable_n8n": bool(os.getenv("N8N_ASSISTANT_WEBHOOK")),
     "n8n_webhook_url": os.getenv("N8N_ASSISTANT_WEBHOOK", "").strip(),
+    "n8n_auth_header": os.getenv("N8N_ASSISTANT_AUTH_HEADER", "X-Assistant-Token").strip(),
+    "n8n_auth_token": os.getenv("N8N_ASSISTANT_AUTH_TOKEN", "").strip(),
     "request_timeout_seconds": 25,
     "default_currency": "MAD",
+    "webhook_schema_version": "1.0",
+}
+
+
+STREAMLIT_THEME = {
+    "surface": "#fffdf9",
+    "surface_alt": "#f5efe3",
+    "card": "#fffaf1",
+    "border": "#dfd4bd",
+    "text": "#231b14",
+    "muted": "#6f6559",
+    "accent": "#b3642b",
+    "accent_soft": "#f0d8bf",
+    "success": "#2f7a47",
+    "warning": "#cc7a1d",
+    "danger": "#b53d2f",
 }
