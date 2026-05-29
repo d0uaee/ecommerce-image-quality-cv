@@ -379,9 +379,6 @@ def write_consolidated_report(
         lines.append(
             "- Les erreurs residuelles viennent surtout des cas ou le produit est grand mais visuellement lisse, ou quand le fond studio perturbe encore la perception de resolution utile."
         )
-    lines.append("")
-    lines.append("## 5. Limites methodologiques")
-    lines.append("")
     multi_summary = read_multi_annotator_summary()
     if not multi_summary.empty:
         row = multi_summary.iloc[0]
