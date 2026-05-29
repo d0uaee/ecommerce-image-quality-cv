@@ -238,6 +238,58 @@ def _detect_out_of_scope_hint(hints: str) -> str | None:
     return None
 
 
+def _clean_hint_sentence(hints: str, max_chars: int = 140) -> str:
+    return _truncate_sentence(hints, max_chars=max_chars).strip().rstrip(".")
+
+
+def _category_label(category: str) -> str:
+    labels = {
+        "shoes": "chaussures",
+        "clothing": "vetement",
+        "portable_electronics": "produit electronique portable",
+    }
+    return labels.get(category, "produit")
+
+
+def _build_local_description(
+    *,
+    prototype: ProductPrototype,
+    color: str,
+    seller_hints: str,
+    subtype: str | None,
+    inferred_category: str,
+) -> str:
+    hint_sentence = _clean_hint_sentence(seller_hints)
+    subtype_label = subtype or _category_label(inferred_category)
+
+    if inferred_category == "portable_electronics":
+        category_sentence = (
+            f"{subtype_label.capitalize()} {color} presente de maniere claire pour une annonce e-commerce, "
+            "avec un rendu oriente usage mobile ou domestique."
+        )
+        quality_sentence = (
+            "Verifier la marque, les connectiques, la puissance ou la capacite exacte avant publication."
+        )
+    elif inferred_category == "clothing":
+        category_sentence = (
+            f"{subtype_label.capitalize()} {color} avec une presentation simple et lisible, adaptee a une fiche produit textile."
+        )
+        quality_sentence = (
+            "Verifier la taille, la matiere et la coupe exacte pour completer l'annonce."
+        )
+    else:
+        category_sentence = (
+            f"{subtype_label.capitalize()} {color} presente avec un rendu clair, adapte a une fiche produit orientee mode."
+        )
+        quality_sentence = (
+            "Verifier la pointure, la matiere et l'etat exact du produit avant publication."
+        )
+
+    if hint_sentence:
+        return f"{hint_sentence}. {category_sentence} {quality_sentence}"
+    return f"{prototype.description_fr.format(color=color)} {quality_sentence}"
+
+
 def _build_prompt_contract(seller_hints: str) -> dict[str, Any]:
     return {
         "instruction": (
@@ -374,13 +426,18 @@ def _build_local_payload(image_rgb: np.ndarray, seller_hints: str = "") -> dict[
     elif subtype:
         title = f"{subtype.capitalize()} {color}"
 
-    description = prototype.description_fr.format(color=color)
-    if subtype:
-        description = description.replace("Haut", subtype.capitalize()).replace("Chaussures a talons", subtype.capitalize())
-    if hints_text:
-        description = f"{description} Informations vendeur a verifier: {_truncate_sentence(hints_text, 120)}."
+    description = _build_local_description(
+        prototype=prototype,
+        color=color,
+        seller_hints=hints_text,
+        subtype=subtype,
+        inferred_category=inferred_category,
+    )
 
-    attributes = list(prototype.attributes) + [f"couleur percue: {color}", f"categorie estimee: {prototype.category}"]
+    attributes = list(prototype.attributes)
+    if subtype:
+        attributes.insert(0, f"type detecte: {subtype}")
+    attributes.extend([f"couleur percue: {color}", f"categorie estimee: {inferred_category}"])
     missing_info = list(prototype.missing_info)
     checklist = [
         "Verifier que la marque est mentionnee si elle est connue.",
