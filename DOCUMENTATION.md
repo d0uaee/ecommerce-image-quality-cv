@@ -128,8 +128,8 @@ ecommerce-image-quality/
    |- analyzer.py
    |- candidate_region_generator.py
    |- dictionaries.py
-   |- scraper.py
    |- selector.py
+   |- listing_assistant.py
    `- text_processor.py
 ```
 

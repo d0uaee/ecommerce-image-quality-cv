@@ -48,8 +48,9 @@ const deckStats = {
   perCategory: 60,
   totalDegraded: 3240,
   categories: ["shoes", "clothing", "portable_electronics"],
-  spearman: 0.3799,
-  pvalue: 0.006497,
+  spearman: 0.7122,
+  pvalue: 0.00000000664,
+  multiAnnotatorSpearman: 0.675243,
 };
 
 const sensitivity = [
