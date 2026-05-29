@@ -112,6 +112,16 @@ PRODUCT_PROTOTYPES: tuple[ProductPrototype, ...] = (
         price_hint=(150, 650),
     ),
     ProductPrototype(
+        key="amplifier",
+        category="portable_electronics",
+        prompt="amplificateur audio compact",
+        title_fr="Amplificateur audio {color} format compact",
+        description_fr="Amplificateur audio {color} au format compact, adapte a un usage musical domestique ou de repetition avec une presentation claire du panneau de controle.",
+        attributes=("usage audio", "format compact", "panneau de controle visible"),
+        missing_info=("puissance", "connectiques", "etat des potentiometres"),
+        price_hint=(500, 1800),
+    ),
+    ProductPrototype(
         key="smartwatch",
         category="portable_electronics",
         prompt="montre connectee portable",
@@ -187,6 +197,8 @@ def _detect_listing_subtype(hints: str, category: str) -> str | None:
             "jupe": "jupe",
         },
         "portable_electronics": {
+            "ampli": "amplificateur audio",
+            "amplificateur": "amplificateur audio",
             "chargeur": "chargeur portable",
             "power bank": "power bank",
             "ecouteur": "ecouteurs",
@@ -243,6 +255,11 @@ def _best_prototype(image_rgb: np.ndarray, seller_hints: str) -> ProductPrototyp
     image_embedding = encode_image_embedding(image_rgb)
     hint_data = process_text(seller_hints, seller_hints) if seller_hints.strip() else None
     hinted_category = hint_data.get("category") if hint_data else None
+    hinted_subtype = _detect_listing_subtype(seller_hints, hinted_category) if hinted_category else None
+    if hinted_subtype:
+        for prototype in PRODUCT_PROTOTYPES:
+            if prototype.category == hinted_category and hinted_subtype in prototype.prompt:
+                return prototype
     best_proto = PRODUCT_PROTOTYPES[0]
     best_score = -1.0
     for prototype in PRODUCT_PROTOTYPES:
