@@ -26,6 +26,8 @@ SPEARMAN_PLOT_PATH = REPORT_DIR / "spearman_correlation.png"
 SENSITIVITY_TARGET_CSV = REPORT_DIR / "full_eval_sensitivity_target.csv"
 SENSITIVITY_MATRIX_CSV = REPORT_DIR / "full_eval_sensitivity_matrix.csv"
 CONSOLIDATED_REPORT_MD = REPORT_DIR / "evaluation_report.md"
+MULTI_ANNOTATOR_SUMMARY_CSV = REPORT_DIR / "multi_annotator_summary.csv"
+DINO_FALLBACK_REPORT_MD = REPORT_DIR / "dino_fallback_report.md"
 
 NEUTRAL_TEXT_DATA = {
     "text_embedding": np.zeros(512, dtype=np.float32),
@@ -218,6 +220,24 @@ def build_category_summary(template_frame: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("category").reset_index(drop=True)
 
 
+def read_multi_annotator_summary() -> pd.DataFrame:
+    if not MULTI_ANNOTATOR_SUMMARY_CSV.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(MULTI_ANNOTATOR_SUMMARY_CSV)
+    except Exception:
+        return pd.DataFrame()
+
+
+def read_dino_fallback_notes() -> list[str]:
+    if not DINO_FALLBACK_REPORT_MD.exists():
+        return []
+    try:
+        return DINO_FALLBACK_REPORT_MD.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return []
+
+
 def build_spearman_plot(template_frame: pd.DataFrame) -> str:
     completed = template_frame.copy()
     completed["score_humain"] = pd.to_numeric(completed["score_humain"], errors="coerce")
@@ -362,7 +382,36 @@ def write_consolidated_report(
     lines.append("")
     lines.append("## 5. Limites methodologiques")
     lines.append("")
-    lines.append("- L'evaluation humaine principale repose encore sur un seul annotateur rempli dans le CSV principal.")
+    multi_summary = read_multi_annotator_summary()
+    if not multi_summary.empty:
+        row = multi_summary.iloc[0]
+        lines.append("## 5. Evaluation multi-annotateur")
+        lines.append("")
+        lines.append(f"- Images annotees exploitables : {int(row['n_multi_annotated'])}")
+        lines.append(f"- Nombre d'annotateurs : {int(row['annotator_count'])}")
+        lines.append(f"- Echelle detectee : {row['score_scale']}")
+        lines.append(f"- Accord exact moyen : {float(row['exact_agreement_mean']):.4f}")
+        lines.append(f"- Accord moyen a tolerance : {float(row['tolerance_agreement_mean']):.4f}")
+        lines.append(f"- Spearman moyen inter-annotateurs : {float(row['inter_annotator_spearman_mean']):.6f}")
+        lines.append(
+            f"- Spearman score auto vs moyenne humaine : {float(row['auto_vs_avg_human_spearman']):.6f}"
+        )
+        lines.append("")
+        lines.append("## 6. Test DINO conditionnel")
+        lines.append("")
+        dino_lines = [line for line in read_dino_fallback_notes() if line.startswith("- ")]
+        if dino_lines:
+            lines.extend(dino_lines)
+        else:
+            lines.append("- Aucun rapport DINO fallback disponible.")
+        lines.append("")
+        lines.append("## 7. Limites methodologiques")
+        lines.append("")
+    else:
+        lines.append("## 6. Limites methodologiques")
+        lines.append("")
+        lines.append("- L'evaluation multi-annotateur n'est pas encore disponible dans le rapport consolide.")
+    lines.append("- Les annotations humaines restent subjectives, meme si la moyenne de plusieurs annotateurs reduit ce bruit.")
     lines.append("- Le module de coherence utilise un texte neutre en evaluation globale quand la tache porte uniquement sur la qualite photo.")
     lines.append("- Les performances restent dependantes du bon crop initial et de la categorie produit.")
     lines.append("- Les resultats categories peuvent varier lorsque le nombre d'images annotees reste limite.")
