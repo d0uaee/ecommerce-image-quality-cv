@@ -138,6 +138,13 @@ def _rgb_to_base64_jpeg(image_rgb: np.ndarray) -> str:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+def _truncate_sentence(text: str, max_chars: int = 180) -> str:
+    clean = " ".join(str(text or "").split())
+    if len(clean) <= max_chars:
+        return clean
+    return clean[: max_chars - 1].rstrip(" ,;:-") + "…"
+
+
 def _cosine(a: np.ndarray, b: np.ndarray) -> float:
     a = np.asarray(a, dtype=np.float32).reshape(-1)
     b = np.asarray(b, dtype=np.float32).reshape(-1)
@@ -157,6 +164,69 @@ def _closest_color_name(image_rgb: np.ndarray) -> str:
             best_name = name
             best_distance = distance
     return best_name
+
+
+def _detect_listing_subtype(hints: str, category: str) -> str | None:
+    hint = hints.lower()
+    mapping = {
+        "shoes": {
+            "talon": "chaussures a talons",
+            "escarpin": "escarpins",
+            "bott": "bottines",
+            "sandale": "sandales",
+            "sneaker": "sneakers",
+            "basket": "baskets",
+        },
+        "clothing": {
+            "veste": "veste",
+            "robe": "robe",
+            "chemise": "chemise",
+            "pull": "pull",
+            "collant": "collants",
+            "pantalon": "pantalon",
+            "jupe": "jupe",
+        },
+        "portable_electronics": {
+            "chargeur": "chargeur portable",
+            "power bank": "power bank",
+            "ecouteur": "ecouteurs",
+            "earbuds": "ecouteurs",
+            "montre": "montre connectee",
+            "smartwatch": "montre connectee",
+            "casque": "casque audio",
+        },
+    }
+    for needle, subtype in mapping.get(category, {}).items():
+        if needle in hint:
+            return subtype
+    return None
+
+
+def _build_prompt_contract(seller_hints: str) -> dict[str, Any]:
+    return {
+        "instruction": (
+            "Analyser l'image produit et generer une sortie JSON stricte pour une fiche e-commerce. "
+            "Ne pas inventer la marque. Garder un style vendeur simple, naturel et prudent. "
+            "La categorie doit etre une de shoes, clothing, portable_electronics."
+        ),
+        "seller_hints": seller_hints,
+        "response_schema": {
+            "title": "string",
+            "description": "string",
+            "category": "string",
+            "attributes": ["string"],
+            "seller_recommendations": {
+                "missing_info": ["string"],
+                "listing_checklist": ["string"],
+                "price_hint": {
+                    "currency": "string",
+                    "min": "number|null",
+                    "max": "number|null",
+                    "note": "string",
+                },
+            },
+        },
+    }
 
 
 def _select_crop(image_rgb: np.ndarray) -> tuple[np.ndarray, tuple[int, int, int, int]]:
@@ -199,13 +269,18 @@ def _build_local_payload(image_rgb: np.ndarray, seller_hints: str = "") -> dict[
     hint_data = process_text(seller_hints, seller_hints) if seller_hints.strip() else {}
     color = hint_data.get("color") or _closest_color_name(crop_rgb)
     hints_text = seller_hints.strip()
+    subtype = _detect_listing_subtype(hints_text, hint_data.get("category") or prototype.category)
     title = prototype.title_fr.format(color=color)
     if hints_text:
         title = hints_text[:90].strip().rstrip(".")
+    elif subtype:
+        title = f"{subtype.capitalize()} {color}"
 
     description = prototype.description_fr.format(color=color)
+    if subtype:
+        description = description.replace("Haut", subtype.capitalize()).replace("Chaussures a talons", subtype.capitalize())
     if hints_text:
-        description = f"{description} Informations vendeur a verifier: {hints_text}."
+        description = f"{description} Informations vendeur a verifier: {_truncate_sentence(hints_text, 120)}."
 
     attributes = list(prototype.attributes) + [f"couleur percue: {color}", f"categorie estimee: {prototype.category}"]
     missing_info = list(prototype.missing_info)
@@ -220,7 +295,7 @@ def _build_local_payload(image_rgb: np.ndarray, seller_hints: str = "") -> dict[
         "crop_bbox": list(bbox),
         "category": hint_data.get("category") or prototype.category,
         "title": title,
-        "description": description,
+        "description": _truncate_sentence(description, 320),
         "attributes": attributes,
         "seller_recommendations": {
             "missing_info": missing_info,
@@ -243,6 +318,8 @@ def _call_n8n_webhook(image_rgb: np.ndarray, seller_hints: str = "") -> dict[str
     payload = {
         "image_base64_jpeg": _rgb_to_base64_jpeg(image_rgb),
         "seller_hints": seller_hints,
+        "schema_version": ASSISTANT_CONFIG["webhook_schema_version"],
+        "contract": _build_prompt_contract(seller_hints),
         "requested_fields": [
             "title",
             "description",
@@ -251,10 +328,15 @@ def _call_n8n_webhook(image_rgb: np.ndarray, seller_hints: str = "") -> dict[str
             "seller_recommendations",
         ],
     }
+    headers = {"Content-Type": "application/json"}
+    auth_token = ASSISTANT_CONFIG["n8n_auth_token"]
+    auth_header = ASSISTANT_CONFIG["n8n_auth_header"]
+    if auth_token and auth_header:
+        headers[auth_header] = auth_token
     req = request.Request(
         webhook_url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
     try:
@@ -265,8 +347,43 @@ def _call_n8n_webhook(image_rgb: np.ndarray, seller_hints: str = "") -> dict[str
 
     if not isinstance(data, dict):
         return None
-    data.setdefault("source", "n8n_webhook")
-    return data
+    return _normalize_external_payload(data, seller_hints=seller_hints)
+
+
+def _normalize_external_payload(payload: dict[str, Any], seller_hints: str = "") -> dict[str, Any] | None:
+    title = str(payload.get("title", "") or "").strip()
+    description = str(payload.get("description", "") or "").strip()
+    category = str(payload.get("category", "") or "").strip()
+    if not title or not description:
+        return None
+    if category not in {"shoes", "clothing", "portable_electronics"}:
+        category = process_text(seller_hints, seller_hints).get("category") or "clothing"
+
+    seller = payload.get("seller_recommendations", {})
+    price_hint = seller.get("price_hint", {}) if isinstance(seller, dict) else {}
+    normalized = {
+        "source": "n8n_webhook",
+        "category": category,
+        "title": _truncate_sentence(title, 100),
+        "description": _truncate_sentence(description, 360),
+        "attributes": [str(item) for item in payload.get("attributes", [])][:8],
+        "seller_recommendations": {
+            "missing_info": [str(item) for item in seller.get("missing_info", [])][:8] if isinstance(seller, dict) else [],
+            "listing_checklist": [str(item) for item in seller.get("listing_checklist", [])][:8] if isinstance(seller, dict) else [],
+            "price_hint": {
+                "currency": str(price_hint.get("currency", ASSISTANT_CONFIG["default_currency"])),
+                "min": price_hint.get("min"),
+                "max": price_hint.get("max"),
+                "note": str(
+                    price_hint.get(
+                        "note",
+                        "Estimation a confirmer selon la marque, l'etat et les specifications exactes.",
+                    )
+                ),
+            },
+        },
+    }
+    return normalized
 
 
 def generate_listing_assistance(image_rgb: np.ndarray, seller_hints: str = "") -> dict[str, Any]:
