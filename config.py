@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -109,4 +110,13 @@ QUALITY_THRESHOLDS = {
 STREAMLIT_DEFAULTS = {
     "page_title": "E-commerce Image Quality",
     "layout": "wide",
+}
+
+
+ASSISTANT_CONFIG = {
+    "history_limit": 20,
+    "enable_n8n": bool(os.getenv("N8N_ASSISTANT_WEBHOOK")),
+    "n8n_webhook_url": os.getenv("N8N_ASSISTANT_WEBHOOK", "").strip(),
+    "request_timeout_seconds": 25,
+    "default_currency": "MAD",
 }
