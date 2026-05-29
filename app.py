@@ -61,6 +61,16 @@ def _inject_premium_styles() -> None:
     st.markdown(
         f"""
         <style>
+        :root {{
+            --app-surface: {theme['surface']};
+            --app-surface-alt: {theme['surface_alt']};
+            --app-card: {theme['card']};
+            --app-border: {theme['border']};
+            --app-text: {theme['text']};
+            --app-muted: {theme['muted']};
+            --app-accent: {theme['accent']};
+            --app-accent-soft: {theme['accent_soft']};
+        }}
         .stApp {{
             background:
                 radial-gradient(circle at top left, #fff7ea 0%, {theme['surface']} 38%),
@@ -120,6 +130,112 @@ def _inject_premium_styles() -> None:
         .history-note {{
             color: {theme['muted']};
             font-size: 0.9rem;
+        }}
+        [data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, #f7efe4 0%, #f2e8da 100%);
+            border-right: 1px solid {theme['border']};
+        }}
+        [data-testid="stSidebar"] * {{
+            color: {theme['text']} !important;
+        }}
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="input"] > div,
+        div[data-baseweb="textarea"] > div,
+        .stTextInput input,
+        .stTextArea textarea,
+        .stNumberInput input,
+        .stDateInput input,
+        .stTimeInput input {{
+            background: #fffaf2 !important;
+            color: {theme['text']} !important;
+            border: 1px solid {theme['border']} !important;
+            border-radius: 14px !important;
+        }}
+        .stTextInput label,
+        .stTextArea label,
+        .stFileUploader label,
+        .stRadio label,
+        .stSelectbox label,
+        .stToggle label,
+        .stDownloadButton label,
+        .stMarkdown,
+        .stCaption,
+        .stSubheader,
+        .stHeader,
+        .stForm label {{
+            color: {theme['text']} !important;
+        }}
+        .stTextInput input::placeholder,
+        .stTextArea textarea::placeholder {{
+            color: {theme['muted']} !important;
+            opacity: 0.9 !important;
+        }}
+        [data-testid="stFileUploaderDropzone"] {{
+            background: #fffaf2 !important;
+            border: 1px dashed {theme['border']} !important;
+            color: {theme['text']} !important;
+        }}
+        [data-testid="stFileUploaderDropzone"] * {{
+            color: {theme['text']} !important;
+        }}
+        button[kind="primary"],
+        .stButton button,
+        .stDownloadButton button {{
+            background: linear-gradient(135deg, {theme['accent']} 0%, #cb7a3d 100%) !important;
+            color: #fff7ef !important;
+            border: none !important;
+            border-radius: 14px !important;
+            box-shadow: 0 10px 24px rgba(179, 100, 43, 0.22);
+        }}
+        .stButton button:hover,
+        .stDownloadButton button:hover {{
+            filter: brightness(1.03);
+        }}
+        [data-testid="stRadio"] > div {{
+            gap: 0.5rem;
+        }}
+        [data-testid="stRadio"] label {{
+            background: #fffaf2;
+            border: 1px solid {theme['border']};
+            border-radius: 999px;
+            padding: 0.45rem 0.8rem;
+        }}
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 0.45rem;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            background: #fffaf2;
+            border: 1px solid {theme['border']};
+            border-radius: 999px;
+            color: {theme['text']} !important;
+        }}
+        .stTabs [aria-selected="true"] {{
+            background: {theme['accent_soft']} !important;
+            border-color: {theme['accent']} !important;
+        }}
+        [data-testid="stAlert"] {{
+            border-radius: 16px;
+            border: 1px solid {theme['border']};
+        }}
+        [data-testid="stInfo"] {{
+            background: #eef5fc !important;
+            color: {theme['text']} !important;
+        }}
+        [data-testid="stWarning"] {{
+            background: #fff5e6 !important;
+            color: {theme['text']} !important;
+        }}
+        [data-testid="stError"] {{
+            background: #fdeeee !important;
+            color: {theme['text']} !important;
+        }}
+        [data-testid="stDataFrame"] * {{
+            color: {theme['text']} !important;
+        }}
+        .st-emotion-cache-1r6slb0,
+        .st-emotion-cache-16idsys p,
+        .st-emotion-cache-10trblm {{
+            color: {theme['text']} !important;
         }}
         </style>
         """,
