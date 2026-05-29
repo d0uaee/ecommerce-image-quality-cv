@@ -134,6 +134,22 @@ PRODUCT_PROTOTYPES: tuple[ProductPrototype, ...] = (
 )
 
 
+OUT_OF_SCOPE_KEYWORDS = (
+    "bateau",
+    "gonflable",
+    "rames",
+    "rame",
+    "canoe",
+    "kayak",
+    "matelas",
+    "piscine",
+    "canape",
+    "table",
+    "chaise",
+    "meuble",
+)
+
+
 def _normalize_image(image_rgb: np.ndarray) -> np.ndarray:
     array = np.asarray(image_rgb, dtype=np.uint8)
     if array.ndim != 3 or array.shape[2] != 3:
@@ -214,6 +230,14 @@ def _detect_listing_subtype(hints: str, category: str) -> str | None:
     return None
 
 
+def _detect_out_of_scope_hint(hints: str) -> str | None:
+    hint = hints.lower()
+    for keyword in OUT_OF_SCOPE_KEYWORDS:
+        if keyword in hint:
+            return keyword
+    return None
+
+
 def _build_prompt_contract(seller_hints: str) -> dict[str, Any]:
     return {
         "instruction": (
@@ -251,7 +275,7 @@ def _select_crop(image_rgb: np.ndarray) -> tuple[np.ndarray, tuple[int, int, int
     return crop_rgb, tuple(int(v) for v in refined["bbox"])
 
 
-def _best_prototype(image_rgb: np.ndarray, seller_hints: str) -> ProductPrototype:
+def _best_prototype(image_rgb: np.ndarray, seller_hints: str) -> tuple[ProductPrototype, float]:
     image_embedding = encode_image_embedding(image_rgb)
     hint_data = process_text(seller_hints, seller_hints) if seller_hints.strip() else None
     hinted_category = hint_data.get("category") if hint_data else None
@@ -259,7 +283,7 @@ def _best_prototype(image_rgb: np.ndarray, seller_hints: str) -> ProductPrototyp
     if hinted_subtype:
         for prototype in PRODUCT_PROTOTYPES:
             if prototype.category == hinted_category and hinted_subtype in prototype.prompt:
-                return prototype
+                return prototype, 1.0
     best_proto = PRODUCT_PROTOTYPES[0]
     best_score = -1.0
     for prototype in PRODUCT_PROTOTYPES:
@@ -276,17 +300,74 @@ def _best_prototype(image_rgb: np.ndarray, seller_hints: str) -> ProductPrototyp
     if best_score < 0.0 and hinted_category:
         for prototype in PRODUCT_PROTOTYPES:
             if prototype.category == hinted_category:
-                return prototype
-    return best_proto
+                return prototype, 0.0
+    return best_proto, best_score
+
+
+def _build_uncertain_payload(
+    seller_hints: str,
+    reason: str,
+    category_guess: str | None = None,
+) -> dict[str, Any]:
+    title = seller_hints[:90].strip().rstrip(".") if seller_hints.strip() else "Produit a verifier"
+    category_value = category_guess or "hors_scope_ou_incertain"
+    return {
+        "source": "local_assistant",
+        "category": category_value,
+        "title": title or "Produit a verifier",
+        "description": (
+            "Le produit semble hors du scope principal de l'application ou trop ambigu pour generer une fiche fiable. "
+            "Merci de verifier manuellement la categorie, les caracteristiques et le texte vendeur."
+        ),
+        "attributes": ["generation prudente", f"raison: {reason}"],
+        "seller_recommendations": {
+            "missing_info": [
+                "confirmer la categorie exacte",
+                "verifier la marque et les caracteristiques principales",
+                "ajouter une description manuelle adaptee",
+            ],
+            "listing_checklist": [
+                "Verifier que le produit entre bien dans le scope cible.",
+                "Completer les specifications techniques ou d'usage.",
+                "Confirmer le prix avec une reference reelle du marche.",
+            ],
+            "price_hint": {
+                "currency": ASSISTANT_CONFIG["default_currency"],
+                "min": None,
+                "max": None,
+                "note": "Pas de prix indicatif propose car la categorie est hors scope ou la confiance est insuffisante.",
+            },
+        },
+    }
 
 
 def _build_local_payload(image_rgb: np.ndarray, seller_hints: str = "") -> dict[str, Any]:
     crop_rgb, bbox = _select_crop(image_rgb)
-    prototype = _best_prototype(crop_rgb, seller_hints)
     hint_data = process_text(seller_hints, seller_hints) if seller_hints.strip() else {}
+    out_of_scope_keyword = _detect_out_of_scope_hint(seller_hints)
+    if out_of_scope_keyword:
+        payload = _build_uncertain_payload(
+            seller_hints=seller_hints,
+            reason=f"mot-cle hors scope detecte: {out_of_scope_keyword}",
+            category_guess=hint_data.get("category"),
+        )
+        payload["crop_bbox"] = list(bbox)
+        return payload
+
+    prototype, confidence = _best_prototype(crop_rgb, seller_hints)
     color = hint_data.get("color") or _closest_color_name(crop_rgb)
     hints_text = seller_hints.strip()
     subtype = _detect_listing_subtype(hints_text, hint_data.get("category") or prototype.category)
+    inferred_category = hint_data.get("category") or prototype.category
+    if not hint_data.get("category") and confidence < 0.22:
+        payload = _build_uncertain_payload(
+            seller_hints=seller_hints,
+            reason=f"confiance image faible ({confidence:.2f})",
+            category_guess=inferred_category,
+        )
+        payload["crop_bbox"] = list(bbox)
+        return payload
+
     title = prototype.title_fr.format(color=color)
     if hints_text:
         title = hints_text[:90].strip().rstrip(".")
@@ -310,7 +391,7 @@ def _build_local_payload(image_rgb: np.ndarray, seller_hints: str = "") -> dict[
     return {
         "source": "local_assistant",
         "crop_bbox": list(bbox),
-        "category": hint_data.get("category") or prototype.category,
+        "category": inferred_category,
         "title": title,
         "description": _truncate_sentence(description, 320),
         "attributes": attributes,
