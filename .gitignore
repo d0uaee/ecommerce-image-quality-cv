@@ -12,3 +12,4 @@ dataset_cache/
 batch_rerun.log
 data/batch_results.csv
 remise_prof_final_*/
+docs/_build/
