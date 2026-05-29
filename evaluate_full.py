@@ -138,7 +138,7 @@ def build_human_template(limit: int = 50) -> pd.DataFrame:
 def build_second_annotator_template(template_frame: pd.DataFrame) -> pd.DataFrame:
     if HUMAN_TEMPLATE_ANNOTATOR2_CSV.exists():
         existing = pd.read_csv(HUMAN_TEMPLATE_ANNOTATOR2_CSV)
-        if {"image", "score_humain"}.issubset(existing.columns):
+        if "image" in existing.columns and any(col.startswith("score_humain") for col in existing.columns):
             return existing
 
     second = template_frame.copy()
