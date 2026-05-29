@@ -938,13 +938,13 @@ async function buildDeck() {
     addTitle(ctx, slide, "Validation humaine finale", "Le score automatique est compare a 50 jugements humains sur un echantillon d'images.");
     await addImageCard(ctx, slide, assets.spearman, 70, 210, 560, 360, "Graphe de corrrelation Spearman");
     addStatCard(ctx, slide, 700, 228, 220, 110, "50", "annotations humaines", COLORS.accent);
-    addStatCard(ctx, slide, 960, 228, 220, 110, "0.3799", "Spearman rho", COLORS.blue);
-    addStatCard(ctx, slide, 700, 362, 220, 110, "0.006497", "p-value", COLORS.green);
+    addStatCard(ctx, slide, 960, 228, 220, 110, "0.7122", "Spearman rho", COLORS.blue);
+    addStatCard(ctx, slide, 700, 362, 220, 110, "6.64e-09", "p-value", COLORS.green);
     addStatCard(ctx, slide, 960, 362, 220, 110, "significatif", "statut", COLORS.yellow);
     addBulletList(ctx, slide, [
-      "Le score automatique suit partiellement le jugement humain.",
-      "La corrrelation est positive et statistiquement significative.",
-      "Le resultat reste modere, ce qui est coherent avec une approche zero-shot explicable.",
+      "Le score automatique suit nettement le jugement humain sur l'echantillon annote.",
+      "La corrrelation est positive et statistiquement tres significative.",
+      "Le resultat est fort pour un pipeline zero-shot explicable sans entrainement local.",
     ], 676, 516, 520, { fontSize: 16, gap: 30, color: COLORS.muted });
     addFooter(ctx, slide, 21);
   });
@@ -1000,7 +1000,7 @@ async function buildDeck() {
     addBulletList(ctx, slide, [
       "Le scope est volontairement limite a trois familles de produits.",
       "Le systeme ne cherche pas a remplacer un modele supervise specialise.",
-      "La corrrelation humaine est significative mais reste moderee.",
+      "La corrrelation humaine est bonne, mais reste dependante du scope et du protocole.",
       "La detection de certains defauts depend encore du contenu visuel et du texte fourni.",
       "Le dataset final est pertinent pour la validation du projet, mais reste de taille modeste.",
     ], 72, 220, 1120, { fontSize: 20, gap: 46 });
