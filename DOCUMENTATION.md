@@ -599,12 +599,6 @@ Interpretation :
 - la recalibration des poids a partir des annotations humaines augmente fortement la coherence globale du score
 - le systeme reste zero-shot : il n'y a toujours aucun entrainement de modele profond, seulement une calibration des poids du score final
 
-Evolution importante du projet :
-
-- version initiale evaluee : `rho ≈ 0.3799`
-- apres ajout de `framing` et premiere calibration : `rho ≈ 0.6322`
-- apres raffinement cible de `sharpness`, `effective_resolution` et `framing` : `rho ≈ 0.7122`
-
 Lecture par categorie :
 
 - `clothing` : categorie la plus robuste
@@ -618,7 +612,16 @@ Causes principales du gain :
 - mesure de `effective_resolution` moins punitive sur les produits studio nets poses sur fond simple
 - recalibration empirique des poids pour mieux coller au jugement humain
 
-## 11.4 Verification manuelle complementaire
+## 11.4 Evolution de la correlation
+
+Cette section sert uniquement a montrer la progression du projet. Elle ne remplace pas les
+resultats finaux presentes ci-dessus.
+
+- version initiale evaluee : `rho ~= 0.3799`
+- apres ajout de `framing` et premiere calibration : `rho ~= 0.6322`
+- apres raffinement cible de `sharpness`, `effective_resolution` et `framing` : `rho ~= 0.7122`
+
+## 11.5 Verification manuelle complementaire
 
 Une verification manuelle supplementaire a ete faite sur 12 cas representatifs couvrant :
 

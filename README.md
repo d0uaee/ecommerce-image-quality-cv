@@ -144,6 +144,12 @@ Etat du livrable :
 - dataset degrade disponible dans `dataset/degraded/`
 - rapports d'evaluation disponibles dans `output/reports/`
 
+Resultats finaux a retenir :
+
+- Spearman principal (score auto vs evaluation humaine principale) : `0.7122`
+- Spearman (score auto vs moyenne de 8 annotateurs) : `0.675243`
+- p-value principale : `6.64e-09`
+
 ## Idee centrale du PFE
 
 La valeur du projet ne vient pas de l'entrainement d'un nouveau modele.
