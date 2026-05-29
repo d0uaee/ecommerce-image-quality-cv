@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -9,9 +10,10 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from config import DATASET_DIR, RAW_IMAGES_DIR, STREAMLIT_DEFAULTS
+from config import ASSISTANT_CONFIG, DATASET_DIR, RAW_IMAGES_DIR, STREAMLIT_DEFAULTS
 from src.analyzer import analyze
 from src.candidate_region_generator import detect_with_dino, propose_regions
+from src.listing_assistant import generate_listing_assistance
 from src.selector import select_product
 from src.text_processor import process_text
 
@@ -34,6 +36,16 @@ CRITERION_LABELS = {
     "framing": "Cadrage produit",
     "coherence": "Coherence image/texte",
 }
+
+
+def _init_session_state() -> None:
+    st.session_state.setdefault("analysis_history", [])
+
+
+def _push_history(entry: dict[str, Any]) -> None:
+    history = list(st.session_state.get("analysis_history", []))
+    history.insert(0, entry)
+    st.session_state["analysis_history"] = history[: ASSISTANT_CONFIG["history_limit"]]
 
 
 def _score_color(score: float) -> str:
@@ -121,6 +133,124 @@ def _render_score_bar(label: str, score: float, message: str) -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def _history_dataframe() -> pd.DataFrame:
+    history = st.session_state.get("analysis_history", [])
+    if not history:
+        return pd.DataFrame()
+    rows: list[dict[str, Any]] = []
+    for item in history:
+        rows.append(
+            {
+                "timestamp": item.get("timestamp", ""),
+                "mode": item.get("mode", ""),
+                "label": item.get("label", ""),
+                "score": item.get("score"),
+                "category": item.get("category"),
+                "source": item.get("source", ""),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _render_history_block() -> None:
+    history = st.session_state.get("analysis_history", [])
+    if not history:
+        st.info("L'historique apparaitra ici apres les premieres analyses.")
+        return
+
+    tabs = st.tabs(["Historique", "Comparaison avant/apres"])
+    with tabs[0]:
+        st.dataframe(_history_dataframe(), use_container_width=True)
+
+    with tabs[1]:
+        options = {
+            f"{idx + 1:02d} | {item.get('timestamp', '')} | {item.get('label', '')}": idx
+            for idx, item in enumerate(history)
+        }
+        if len(options) < 2:
+            st.caption("Il faut au moins deux analyses dans l'historique pour comparer.")
+            return
+        labels = list(options.keys())
+        before_label = st.selectbox("Avant", labels, index=min(1, len(labels) - 1), key="compare_before")
+        after_label = st.selectbox("Apres", labels, index=0, key="compare_after")
+        before = history[options[before_label]]
+        after = history[options[after_label]]
+
+        col_before, col_after = st.columns(2)
+        with col_before:
+            st.markdown("**Avant**")
+            st.json(before)
+        with col_after:
+            st.markdown("**Apres**")
+            st.json(after)
+
+
+def _build_user_report(
+    title: str,
+    description: str,
+    analysis: dict[str, Any] | None = None,
+    assistant_payload: dict[str, Any] | None = None,
+) -> str:
+    lines = ["# Rapport utilisateur", ""]
+    if title.strip():
+        lines.append(f"- Titre source : {title}")
+    if description.strip():
+        lines.append(f"- Description source : {description}")
+    if analysis is not None:
+        lines.extend(
+            [
+                "",
+                "## Evaluation qualite",
+                "",
+                f"- Score global : {analysis['global_score']:.1f}/100",
+                f"- Resume : {analysis['summary_fr']}",
+                "",
+                "### Sous-scores",
+            ]
+        )
+        for key, payload in analysis["criteria"].items():
+            lines.append(f"- {CRITERION_LABELS.get(key, key)} : {payload['score']:.1f}/100")
+        lines.append("")
+        lines.append("### Recommandations")
+        for item in analysis["advice_fr"]:
+            lines.append(f"- {item}")
+    if assistant_payload is not None:
+        lines.extend(
+            [
+                "",
+                "## Assistant annonce",
+                "",
+                f"- Source : {assistant_payload.get('source', 'inconnue')}",
+                f"- Categorie estimee : {assistant_payload.get('category', '')}",
+                f"- Titre propose : {assistant_payload.get('title', '')}",
+                "",
+                "### Description proposee",
+                assistant_payload.get("description", ""),
+                "",
+                "### Attributs",
+            ]
+        )
+        for attribute in assistant_payload.get("attributes", []):
+            lines.append(f"- {attribute}")
+        seller = assistant_payload.get("seller_recommendations", {})
+        lines.append("")
+        lines.append("### Informations a completer")
+        for item in seller.get("missing_info", []):
+            lines.append(f"- {item}")
+        lines.append("")
+        lines.append("### Checklist annonce")
+        for item in seller.get("listing_checklist", []):
+            lines.append(f"- {item}")
+        price_hint = seller.get("price_hint", {})
+        if price_hint:
+            lines.append("")
+            lines.append(
+                f"### Prix indicatif prudent\n- {price_hint.get('min')} a {price_hint.get('max')} {price_hint.get('currency', '')}"
+            )
+            lines.append(f"- Note : {price_hint.get('note', '')}")
+    return "\n".join(lines)
 
 
 def _run_pipeline(image_rgb: np.ndarray, title: str, description: str) -> dict[str, Any]:
@@ -268,6 +398,104 @@ def _render_single_mode() -> None:
             dino_regions = detect_with_dino(image_rgb[:, :, ::-1], text_data["clean_text"] or "product")
             st.json(dino_regions if dino_regions else {"status": "DINO indisponible ou aucune region"})
 
+    _push_history(
+        {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "mode": "analyse",
+            "label": title[:80] or "analyse manuelle",
+            "score": round(float(analysis["global_score"]), 2),
+            "category": text_data.get("category"),
+            "source": "evaluation",
+        }
+    )
+
+    report_md = _build_user_report(title, description, analysis=analysis)
+    st.download_button(
+        "Exporter rapport utilisateur",
+        data=report_md.encode("utf-8"),
+        file_name="rapport_utilisateur.md",
+        mime="text/markdown",
+    )
+    with st.expander("Historique et comparaison"):
+        _render_history_block()
+
+
+def _render_assistant_mode() -> None:
+    image_rgb, title, description, source_mode = _single_image_controls()
+    seller_hints = st.text_area(
+        "Infos vendeur optionnelles",
+        value=description if source_mode == "Annonce du dataset" else "",
+        height=110,
+        placeholder="Ex: marque, etat, taille, capacite, public cible...",
+    )
+
+    if image_rgb is None:
+        st.info("Charge une image ou choisis une annonce du dataset pour generer une annonce assistee.")
+        return
+
+    with st.spinner("Generation de l'assistance annonce..."):
+        payload = generate_listing_assistance(image_rgb, seller_hints=seller_hints or title)
+
+    st.subheader("Titre propose")
+    st.markdown(f"### {payload.get('title', 'Titre indisponible')}")
+    st.caption(f"Source assistant : {payload.get('source', 'inconnue')}")
+
+    st.subheader("Description proposee")
+    st.write(payload.get("description", ""))
+
+    col_meta, col_actions = st.columns([1.2, 1])
+    with col_meta:
+        st.markdown("**Attributs detectes**")
+        for attribute in payload.get("attributes", []):
+            st.write(f"- {attribute}")
+        st.markdown("**Categorie estimee**")
+        st.write(payload.get("category", ""))
+    with col_actions:
+        seller = payload.get("seller_recommendations", {})
+        st.markdown("**Infos manquantes**")
+        for item in seller.get("missing_info", []):
+            st.write(f"- {item}")
+        st.markdown("**Checklist annonce**")
+        for item in seller.get("listing_checklist", []):
+            st.write(f"- {item}")
+        price_hint = seller.get("price_hint", {})
+        if price_hint:
+            st.markdown("**Prix indicatif prudent**")
+            st.write(
+                f"{price_hint.get('min', '?')} - {price_hint.get('max', '?')} {price_hint.get('currency', '')}"
+            )
+            st.caption(price_hint.get("note", ""))
+
+    _push_history(
+        {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "mode": "assistant",
+            "label": payload.get("title", title[:80] or "annonce assistee"),
+            "score": None,
+            "category": payload.get("category"),
+            "source": payload.get("source", "assistant"),
+        }
+    )
+
+    report_md = _build_user_report(title, description, assistant_payload=payload)
+    json_bytes = pd.Series(payload).to_json(force_ascii=False, indent=2).encode("utf-8")
+    st.download_button(
+        "Exporter rapport assistant",
+        data=report_md.encode("utf-8"),
+        file_name="assistant_annonce.md",
+        mime="text/markdown",
+        key="assistant_report_md",
+    )
+    st.download_button(
+        "Exporter JSON assistant",
+        data=json_bytes,
+        file_name="assistant_annonce.json",
+        mime="application/json",
+        key="assistant_report_json",
+    )
+    with st.expander("Historique et comparaison"):
+        _render_history_block()
+
 
 def _folder_images(folder: Path) -> list[Path]:
     if not folder.exists() or not folder.is_dir():
@@ -360,12 +588,15 @@ def _render_batch_mode() -> None:
 
 
 def main() -> None:
+    _init_session_state()
     st.title("Evaluation zero-shot de qualite photo e-commerce")
     st.caption("Pipeline : texte -> regions candidates -> selector -> analyzer. Aucun OCR dans le chemin critique.")
 
-    mode = st.sidebar.radio("Mode", ["Analyse unique", "Batch"])
+    mode = st.sidebar.radio("Mode", ["Analyse unique", "Assistant annonce", "Batch"])
     if mode == "Analyse unique":
         _render_single_mode()
+    elif mode == "Assistant annonce":
+        _render_assistant_mode()
     else:
         _render_batch_mode()
 

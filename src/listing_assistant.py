@@ -171,9 +171,13 @@ def _select_crop(image_rgb: np.ndarray) -> tuple[np.ndarray, tuple[int, int, int
 
 def _best_prototype(image_rgb: np.ndarray, seller_hints: str) -> ProductPrototype:
     image_embedding = encode_image_embedding(image_rgb)
+    hint_data = process_text(seller_hints, seller_hints) if seller_hints.strip() else None
+    hinted_category = hint_data.get("category") if hint_data else None
     best_proto = PRODUCT_PROTOTYPES[0]
     best_score = -1.0
     for prototype in PRODUCT_PROTOTYPES:
+        if hinted_category and prototype.category != hinted_category:
+            continue
         prompt = prototype.prompt
         if seller_hints.strip():
             prompt = f"{prompt} {seller_hints}"
@@ -182,21 +186,26 @@ def _best_prototype(image_rgb: np.ndarray, seller_hints: str) -> ProductPrototyp
         if score > best_score:
             best_score = score
             best_proto = prototype
+    if best_score < 0.0 and hinted_category:
+        for prototype in PRODUCT_PROTOTYPES:
+            if prototype.category == hinted_category:
+                return prototype
     return best_proto
 
 
 def _build_local_payload(image_rgb: np.ndarray, seller_hints: str = "") -> dict[str, Any]:
     crop_rgb, bbox = _select_crop(image_rgb)
     prototype = _best_prototype(crop_rgb, seller_hints)
-    color = _closest_color_name(crop_rgb)
+    hint_data = process_text(seller_hints, seller_hints) if seller_hints.strip() else {}
+    color = hint_data.get("color") or _closest_color_name(crop_rgb)
     hints_text = seller_hints.strip()
     title = prototype.title_fr.format(color=color)
     if hints_text:
-        title = f"{title} - {hints_text[:50].strip()}"
+        title = hints_text[:90].strip().rstrip(".")
 
     description = prototype.description_fr.format(color=color)
     if hints_text:
-        description = f"{description} Informations vendeur: {hints_text}."
+        description = f"{description} Informations vendeur a verifier: {hints_text}."
 
     attributes = list(prototype.attributes) + [f"couleur percue: {color}", f"categorie estimee: {prototype.category}"]
     missing_info = list(prototype.missing_info)
@@ -209,7 +218,7 @@ def _build_local_payload(image_rgb: np.ndarray, seller_hints: str = "") -> dict[
     return {
         "source": "local_assistant",
         "crop_bbox": list(bbox),
-        "category": prototype.category,
+        "category": hint_data.get("category") or prototype.category,
         "title": title,
         "description": description,
         "attributes": attributes,
