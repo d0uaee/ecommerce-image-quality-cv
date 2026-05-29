@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from config import ASSISTANT_CONFIG, DATASET_DIR, RAW_IMAGES_DIR, STREAMLIT_DEFAULTS
+from config import ASSISTANT_CONFIG, DATASET_DIR, RAW_IMAGES_DIR, STREAMLIT_DEFAULTS, STREAMLIT_THEME
 from src.analyzer import analyze
 from src.candidate_region_generator import detect_with_dino, propose_regions
 from src.listing_assistant import generate_listing_assistance
@@ -54,6 +54,77 @@ def _score_color(score: float) -> str:
     if score >= 50:
         return "#d97a16"
     return "#c0392b"
+
+
+def _inject_premium_styles() -> None:
+    theme = STREAMLIT_THEME
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background:
+                radial-gradient(circle at top left, #fff7ea 0%, {theme['surface']} 38%),
+                linear-gradient(180deg, {theme['surface']} 0%, #f7f0e7 100%);
+            color: {theme['text']};
+        }}
+        .block-container {{
+            padding-top: 1.6rem;
+            padding-bottom: 2.6rem;
+        }}
+        .app-hero {{
+            border: 1px solid {theme['border']};
+            background: linear-gradient(135deg, {theme['card']} 0%, {theme['surface_alt']} 100%);
+            padding: 18px 20px;
+            border-radius: 22px;
+            box-shadow: 0 12px 35px rgba(54, 35, 13, 0.08);
+            margin-bottom: 1rem;
+        }}
+        .app-badge {{
+            display: inline-block;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            background: {theme['accent_soft']};
+            color: {theme['accent']};
+            margin-bottom: 0.6rem;
+        }}
+        .soft-card {{
+            border: 1px solid {theme['border']};
+            background: {theme['card']};
+            border-radius: 20px;
+            padding: 14px 16px;
+            box-shadow: 0 10px 28px rgba(54, 35, 13, 0.06);
+        }}
+        .metric-card {{
+            border: 1px solid {theme['border']};
+            background: rgba(255,255,255,0.72);
+            backdrop-filter: blur(10px);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 14px 34px rgba(54, 35, 13, 0.08);
+        }}
+        .assistant-grid {{
+            display:grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+        }}
+        .tiny-label {{
+            color: {theme['muted']};
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }}
+        .history-note {{
+            color: {theme['muted']};
+            font-size: 0.9rem;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _load_rgb_image(path: Path) -> np.ndarray:
@@ -135,6 +206,31 @@ def _render_score_bar(label: str, score: float, message: str) -> None:
     )
 
 
+def _render_status_badges() -> None:
+    assistant_state = "n8n actif" if ASSISTANT_CONFIG["enable_n8n"] else "fallback local"
+    st.markdown(
+        f"""
+        <div class="soft-card" style="margin-bottom:1rem">
+          <div class="assistant-grid">
+            <div>
+              <div class="tiny-label">Pipeline principal</div>
+              <div>Zero-shot explicable, sans OCR critique</div>
+            </div>
+            <div>
+              <div class="tiny-label">Assistant annonce</div>
+              <div>{assistant_state}</div>
+            </div>
+            <div>
+              <div class="tiny-label">Historique session</div>
+              <div>{len(st.session_state.get('analysis_history', []))} entree(s)</div>
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _history_dataframe() -> pd.DataFrame:
     history = st.session_state.get("analysis_history", [])
     if not history:
@@ -181,9 +277,29 @@ def _render_history_block() -> None:
         col_before, col_after = st.columns(2)
         with col_before:
             st.markdown("**Avant**")
+            st.markdown(
+                f"""
+                <div class="soft-card">
+                  <div class="tiny-label">{before.get('mode','')}</div>
+                  <h4 style="margin:0.35rem 0">{before.get('label','')}</h4>
+                  <div class="history-note">Score : {before.get('score','-')} | Categorie : {before.get('category','')}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
             st.json(before)
         with col_after:
             st.markdown("**Apres**")
+            st.markdown(
+                f"""
+                <div class="soft-card">
+                  <div class="tiny-label">{after.get('mode','')}</div>
+                  <h4 style="margin:0.35rem 0">{after.get('label','')}</h4>
+                  <div class="history-note">Score : {after.get('score','-')} | Categorie : {after.get('category','')}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
             st.json(after)
 
 
@@ -343,12 +459,12 @@ def _render_single_mode() -> None:
 
     st.markdown(
         f"""
-        <div style="padding:14px 0 4px">
-          <div style="font-size:0.95rem;color:#666">Score global</div>
-          <div style="font-size:3.2rem;font-weight:800;color:{_score_color(analysis['global_score'])}">
+        <div class="metric-card" style="padding:18px 20px;margin:14px 0 18px">
+          <div class="tiny-label">Score global</div>
+          <div style="font-size:3.2rem;font-weight:800;color:{_score_color(analysis['global_score'])};line-height:1.05">
             {analysis['global_score']:.1f}/100
           </div>
-          <div style="font-size:1rem;color:#555">{analysis['summary_fr']}</div>
+          <div style="font-size:1rem;color:{STREAMLIT_THEME['muted']};margin-top:6px">{analysis['summary_fr']}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -436,22 +552,34 @@ def _render_assistant_mode() -> None:
     with st.spinner("Generation de l'assistance annonce..."):
         payload = generate_listing_assistance(image_rgb, seller_hints=seller_hints or title)
 
-    st.subheader("Titre propose")
-    st.markdown(f"### {payload.get('title', 'Titre indisponible')}")
-    st.caption(f"Source assistant : {payload.get('source', 'inconnue')}")
+    st.markdown(
+        f"""
+        <div class="app-hero">
+          <div class="app-badge">Assistant annonce</div>
+          <div class="tiny-label">Source assistant</div>
+          <div style="color:{STREAMLIT_THEME['muted']};margin-bottom:8px">{payload.get('source', 'inconnue')}</div>
+          <h2 style="margin:0 0 0.35rem 0">{payload.get('title', 'Titre indisponible')}</h2>
+          <div style="color:{STREAMLIT_THEME['muted']}">Categorie estimee : {payload.get('category', '')}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.subheader("Description proposee")
-    st.write(payload.get("description", ""))
+    st.markdown(f'<div class="soft-card">{payload.get("description", "")}</div>', unsafe_allow_html=True)
 
     col_meta, col_actions = st.columns([1.2, 1])
     with col_meta:
         st.markdown("**Attributs detectes**")
+        st.markdown('<div class="soft-card">', unsafe_allow_html=True)
         for attribute in payload.get("attributes", []):
             st.write(f"- {attribute}")
         st.markdown("**Categorie estimee**")
         st.write(payload.get("category", ""))
+        st.markdown("</div>", unsafe_allow_html=True)
     with col_actions:
         seller = payload.get("seller_recommendations", {})
+        st.markdown('<div class="soft-card">', unsafe_allow_html=True)
         st.markdown("**Infos manquantes**")
         for item in seller.get("missing_info", []):
             st.write(f"- {item}")
@@ -465,6 +593,7 @@ def _render_assistant_mode() -> None:
                 f"{price_hint.get('min', '?')} - {price_hint.get('max', '?')} {price_hint.get('currency', '')}"
             )
             st.caption(price_hint.get("note", ""))
+        st.markdown("</div>", unsafe_allow_html=True)
 
     _push_history(
         {
@@ -589,8 +718,10 @@ def _render_batch_mode() -> None:
 
 def main() -> None:
     _init_session_state()
+    _inject_premium_styles()
     st.title("Evaluation zero-shot de qualite photo e-commerce")
     st.caption("Pipeline : texte -> regions candidates -> selector -> analyzer. Aucun OCR dans le chemin critique.")
+    _render_status_badges()
 
     mode = st.sidebar.radio("Mode", ["Analyse unique", "Assistant annonce", "Batch"])
     if mode == "Analyse unique":
