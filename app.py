@@ -73,8 +73,11 @@ def _inject_premium_styles() -> None:
         }}
         .stApp {{
             background:
-                radial-gradient(circle at top left, #fff7ea 0%, {theme['surface']} 38%),
-                linear-gradient(180deg, {theme['surface']} 0%, #f7f0e7 100%);
+                radial-gradient(circle at top left, #fff2dc 0%, {theme['surface']} 34%),
+                linear-gradient(180deg, {theme['surface']} 0%, #f8f1e7 100%);
+            color: {theme['text']};
+        }}
+        html, body, [class*="css"] {{
             color: {theme['text']};
         }}
         .block-container {{
@@ -131,11 +134,19 @@ def _inject_premium_styles() -> None:
             color: {theme['muted']};
             font-size: 0.9rem;
         }}
+        h1, h2, h3, h4, h5, h6, p, label, span, div {{
+            color: inherit;
+        }}
         [data-testid="stSidebar"] {{
             background: linear-gradient(180deg, #f7efe4 0%, #f2e8da 100%);
             border-right: 1px solid {theme['border']};
         }}
         [data-testid="stSidebar"] * {{
+            color: {theme['text']} !important;
+        }}
+        section[data-testid="stSidebar"] [data-testid="stRadio"] label,
+        section[data-testid="stSidebar"] [data-testid="stSelectbox"] label,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] * {{
             color: {theme['text']} !important;
         }}
         div[data-baseweb="select"] > div,
@@ -150,6 +161,14 @@ def _inject_premium_styles() -> None:
             color: {theme['text']} !important;
             border: 1px solid {theme['border']} !important;
             border-radius: 14px !important;
+        }}
+        .stTextArea textarea {{
+            min-height: 110px;
+        }}
+        div[data-baseweb="select"] svg,
+        .stTextInput input,
+        .stTextArea textarea {{
+            caret-color: {theme['accent']} !important;
         }}
         .stTextInput label,
         .stTextArea label,
@@ -174,9 +193,14 @@ def _inject_premium_styles() -> None:
             background: #fffaf2 !important;
             border: 1px dashed {theme['border']} !important;
             color: {theme['text']} !important;
+            border-radius: 18px !important;
         }}
         [data-testid="stFileUploaderDropzone"] * {{
             color: {theme['text']} !important;
+        }}
+        [data-testid="stFileUploaderDropzoneInstructions"] > div,
+        [data-testid="stFileUploaderDropzoneInstructions"] small {{
+            color: {theme['muted']} !important;
         }}
         button[kind="primary"],
         .stButton button,
@@ -199,6 +223,15 @@ def _inject_premium_styles() -> None:
             border: 1px solid {theme['border']};
             border-radius: 999px;
             padding: 0.45rem 0.8rem;
+            color: {theme['text']} !important;
+            transition: all 0.18s ease;
+        }}
+        [data-testid="stRadio"] label:hover {{
+            border-color: {theme['accent']};
+            background: {theme['accent_soft']};
+        }}
+        [data-testid="stRadio"] input {{
+            accent-color: {theme['accent']} !important;
         }}
         .stTabs [data-baseweb="tab-list"] {{
             gap: 0.45rem;
@@ -208,10 +241,13 @@ def _inject_premium_styles() -> None:
             border: 1px solid {theme['border']};
             border-radius: 999px;
             color: {theme['text']} !important;
+            padding-left: 0.9rem !important;
+            padding-right: 0.9rem !important;
         }}
         .stTabs [aria-selected="true"] {{
             background: {theme['accent_soft']} !important;
             border-color: {theme['accent']} !important;
+            color: {theme['accent']} !important;
         }}
         [data-testid="stAlert"] {{
             border-radius: 16px;
@@ -220,16 +256,30 @@ def _inject_premium_styles() -> None:
         [data-testid="stInfo"] {{
             background: #eef5fc !important;
             color: {theme['text']} !important;
+            border-left: 5px solid #5a9bd8 !important;
         }}
         [data-testid="stWarning"] {{
             background: #fff5e6 !important;
             color: {theme['text']} !important;
+            border-left: 5px solid {theme['warning']} !important;
         }}
         [data-testid="stError"] {{
             background: #fdeeee !important;
             color: {theme['text']} !important;
+            border-left: 5px solid {theme['danger']} !important;
+        }}
+        [data-testid="stSuccess"] {{
+            background: #edf8ef !important;
+            color: {theme['text']} !important;
+            border-left: 5px solid {theme['success']} !important;
         }}
         [data-testid="stDataFrame"] * {{
+            color: {theme['text']} !important;
+        }}
+        [data-testid="stMarkdownContainer"] p,
+        [data-testid="stMarkdownContainer"] li,
+        [data-testid="stCaptionContainer"] *,
+        [data-testid="stFileUploader"] * {{
             color: {theme['text']} !important;
         }}
         .st-emotion-cache-1r6slb0,
@@ -835,8 +885,18 @@ def _render_batch_mode() -> None:
 def main() -> None:
     _init_session_state()
     _inject_premium_styles()
-    st.title("Evaluation zero-shot de qualite photo e-commerce")
-    st.caption("Pipeline : texte -> regions candidates -> selector -> analyzer. Aucun OCR dans le chemin critique.")
+    st.markdown(
+        f"""
+        <div class="app-hero">
+          <div class="app-badge">PFE zero-shot multimodal</div>
+          <h1 style="margin:0 0 0.45rem 0;color:{STREAMLIT_THEME['text']}">Evaluation zero-shot de qualite photo e-commerce</h1>
+          <div style="color:{STREAMLIT_THEME['muted']};font-size:1rem">
+            Pipeline : texte -> regions candidates -> selector -> analyzer. Aucun OCR dans le chemin critique.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     _render_status_badges()
 
     mode = st.sidebar.radio("Mode", ["Analyse unique", "Assistant annonce", "Batch"])
