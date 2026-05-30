@@ -1,48 +1,63 @@
 # E-commerce Image Quality
 
-Bienvenue dans la documentation officielle du projet **E-commerce Image Quality**.
+**E-commerce Image Quality** est un projet PFE en computer vision, NLP et IA multimodale. Il propose un systeme **zero-shot** capable d'evaluer automatiquement la qualite d'une image produit e-commerce a partir d'une image, d'un titre et d'une description.
 
-Ce projet implemente un systeme **zero-shot multimodal** d'evaluation automatique de la qualite d'images produit e-commerce. A partir d'une image, d'un titre et d'une description, le systeme :
+Le systeme selectionne la region pertinente du produit, calcule plusieurs criteres de qualite visuelle, mesure la coherence image / texte, puis produit un score global explicable avec des recommandations en francais et en darija.
 
-- selectionne automatiquement la region pertinente du produit
-- evalue plusieurs criteres de qualite visuelle
-- calcule un score global explicable
-- mesure la coherence image / texte
-- genere des recommandations en francais et en darija
+## Ce que le projet demontre
 
-Le projet inclut egalement un protocole experimental complet :
+Le projet montre qu'il est possible de construire un pipeline d'evaluation exploitable sans entrainer un modele local specifique. La contribution principale n'est pas un nouveau modele supervise, mais une architecture lisible qui combine :
 
-- dataset final propre organise par categories
-- degradations controlees
-- evaluation humaine
-- validation multi-annotateurs
-- analyses par categorie et calibration du score
+- traitement du texte vendeur
+- proposition de regions candidates
+- selection du produit par signaux multimodaux
+- analyse de qualite visuelle
+- score global calibre
+- protocole experimental reproductible
+
+## Perimetre fonctionnel
+
+Le projet couvre trois categories :
+
+- `shoes`
+- `clothing`
+- `portable_electronics`
+
+Il inclut une application Streamlit avec :
+
+- mode `Analyse unique`
+- mode `Batch`
+- mode `Debug`
+- extension `Assistant annonce`
+
+L'assistant annonce est une extension pratique pour aider un vendeur a generer une fiche produit. Il ne remplace pas le pipeline scientifique principal d'evaluation de qualite.
 
 ## Resultats finaux
 
-- **Spearman principal** (score automatique vs evaluation humaine principale) : `0.7122`
-- **Spearman** (score automatique vs moyenne de 8 annotateurs) : `0.675243`
-- **p-value principale** : `6.64e-09`
+| Mesure | Valeur |
+| --- | ---: |
+| Spearman principal, score auto vs evaluation humaine principale | `0.7122` |
+| p-value principale | `6.64e-09` |
+| Spearman, score auto vs moyenne de 8 annotateurs | `0.675243` |
+| Nombre d'images annotees | `50` |
+| Nombre d'annotateurs dans la validation multi-annotateurs | `8` |
 
-## Public cible
+Ces resultats indiquent que le score automatique suit nettement le jugement humain, tout en restant dans un cadre zero-shot explicable.
 
-Cette documentation s'adresse a :
+## Ce que le projet ne pretend pas faire
 
-- des enseignants et membres de jury
-- des developpeurs
-- des utilisateurs techniques
-- des recruteurs
-- des lecteurs academiques interesses par une approche zero-shot explicable
+Le projet ne pretend pas remplacer un systeme industriel entraine sur des millions d'images. Il ne pretend pas non plus generaliser parfaitement a toutes les categories e-commerce. Son interet est de proposer une methode robuste, interpretable et defendable dans un cadre academique, avec un scope clairement delimite.
 
 ## Lecture recommandee
 
-Si vous decouvrez le projet, commencez par :
+Pour comprendre le projet rapidement :
 
 1. [Vue d'ensemble](getting-started/overview.md)
-2. [Installation](getting-started/installation.md)
-3. [Quickstart](getting-started/quickstart.md)
-4. [Architecture du projet](project/architecture.md)
+2. [Quickstart](getting-started/quickstart.md)
+3. [Architecture](project/architecture.md)
+4. [Methodologie zero-shot](methodology/zero-shot-rationale.md)
 5. [Resultats finaux](evaluation/final-results.md)
+6. [Limites](academic/limitations.md)
 
 ```{toctree}
 :maxdepth: 2
@@ -52,6 +67,7 @@ getting-started/overview
 getting-started/installation
 getting-started/quickstart
 getting-started/first-run
+local-access
 ```
 
 ```{toctree}
