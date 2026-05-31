@@ -13,4 +13,5 @@ data/batch_results.csv
 remise_prof_final_*/
 livrable_prof_*.zip
 *.zip
+*.mov
 docs/_build/
