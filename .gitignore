@@ -6,11 +6,11 @@ __pycache__/
 .env
 .venv/
 node_modules/
-output/
 outputs/
 dataset_cache/
 batch_rerun.log
 data/batch_results.csv
 remise_prof_final_*/
 livrable_prof_*.zip
+*.zip
 docs/_build/

@@ -1,0 +1,4 @@
+category,n,score_auto_mean,score_humain_mean,spearman_rho,p_value
+clothing,16,0.6344,0.5281,0.670612,0.004465
+portable_electronics,18,0.7027,0.5661,0.715907,0.000834
+shoes,16,0.6838,0.6025,0.765028,0.000555

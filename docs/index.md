@@ -1,6 +1,6 @@
 # E-commerce Image Quality
 
-**E-commerce Image Quality** est un projet PFE en computer vision, NLP et IA multimodale. Il propose un systeme **zero-shot** capable d'evaluer automatiquement la qualite d'une image produit e-commerce a partir d'une image, d'un titre et d'une description.
+**E-commerce Image Quality** est un projet en computer vision, NLP et IA multimodale. Il propose un systeme **zero-shot** capable d'evaluer automatiquement la qualite d'une image produit e-commerce a partir d'une image, d'un titre et d'une description.
 
 Le systeme selectionne la region pertinente du produit, calcule plusieurs criteres de qualite visuelle, mesure la coherence image / texte, puis produit un score global explicable avec des recommandations en francais et en darija.
 

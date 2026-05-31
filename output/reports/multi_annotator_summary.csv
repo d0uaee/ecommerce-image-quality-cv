@@ -1,0 +1,2 @@
+n_multi_annotated,annotator_count,score_scale,pair_count,exact_agreement_mean,tolerance_agreement_mean,inter_annotator_spearman_mean,inter_annotator_p_value_mean,auto_vs_avg_human_spearman,auto_vs_avg_human_p_value
+50,8,0..10,28,0.1471,0.3754,0.434187,0.043312,0.675243,0.0

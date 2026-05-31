@@ -1,6 +1,6 @@
 # Guide de Lecture du Livrable
 
-Ce depot contient le livrable final du PFE :
+Ce depot contient le livrable final :
 
 - systeme zero-shot d'evaluation de qualite d'images produit e-commerce
 - application Streamlit de demonstration
@@ -35,7 +35,7 @@ Si vous souhaitez aller directement a l'essentiel, lire dans cet ordre :
    - accord entre annotateurs humains
    - corrélation avec la moyenne humaine
 
-5. `deliverables/presentation_soutenance_pfe_zero_shot_1h.pptx`
+5. `deliverables/presentation.pptx`
    - support de presentation complet
 
 ## Structure utile du depot

@@ -2,7 +2,7 @@
 
 ## 1. Resume du projet
 
-Ce projet PFE implemente un systeme zero-shot capable d'evaluer automatiquement la qualite
+Ce projet computer vision implemente un systeme zero-shot capable d'evaluer automatiquement la qualite
 d'une photo de produit e-commerce a partir d'une annonce composee de :
 
 - une image produit

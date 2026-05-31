@@ -1,6 +1,6 @@
 # E-commerce Image Quality
 
-Projet PFE centre sur un pipeline zero-shot qui evalue la qualite d'une photo produit
+Projet computer vision centre sur un pipeline zero-shot qui evalue la qualite d'une photo produit
 e-commerce et genere un score accompagne de conseils en francais et en darija.
 
 ## Objectif

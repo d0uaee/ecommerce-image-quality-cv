@@ -1,0 +1,9 @@
+image,category,saliency_count,dino_count,saliency_top_bbox,dino_top_bbox,saliency_top_area,dino_top_area
+C:/Users/ahadj/OneDrive/ecommerce-image-quality/dataset/originals/clothing/CLO_016.jpg,clothing,3,0,"(427, 401, 533, 732)",,0.0351,
+C:/Users/ahadj/OneDrive/ecommerce-image-quality/dataset/originals/shoes/SHO_038.jpg,shoes,3,0,"(22, 39, 791, 747)",,0.8507,
+C:/Users/ahadj/OneDrive/ecommerce-image-quality/dataset/originals/shoes/SHO_060.jpg,shoes,3,0,"(51, 234, 719, 761)",,0.352,
+C:/Users/ahadj/OneDrive/ecommerce-image-quality/dataset/originals/portable_electronics/POR_038.jpg,portable_electronics,2,0,"(29, 383, 761, 1251)",,0.2482,
+C:/Users/ahadj/OneDrive/ecommerce-image-quality/dataset/originals/portable_electronics/POR_060.jpg,portable_electronics,2,0,"(29, 383, 761, 1251)",,0.2482,
+C:/Users/ahadj/OneDrive/ecommerce-image-quality/dataset/originals/clothing/CLO_046.jpg,clothing,1,0,"(243, 58, 1754, 1943)",,0.7121,
+C:/Users/ahadj/OneDrive/ecommerce-image-quality/dataset/originals/clothing/CLO_031.jpg,clothing,1,0,"(195, 0, 489, 607)",,0.2788,
+C:/Users/ahadj/OneDrive/ecommerce-image-quality/dataset/originals/portable_electronics/POR_031.jpg,portable_electronics,3,0,"(93, 159, 468, 547)",,0.1455,

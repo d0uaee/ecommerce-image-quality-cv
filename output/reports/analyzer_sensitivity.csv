@@ -1,0 +1,7 @@
+type_degradation,primary_criterion,n,clean_mean,degraded_mean,avg_drop,median_drop,success_rate
+bad_crop,effective_resolution,540,70.46,65.38,5.08,2.01,65.74
+blur,sharpness,540,70.99,5.7,65.3,69.22,99.63
+jpeg,sharpness,540,70.99,65.04,5.95,0.0,47.96
+lowres,effective_resolution,540,70.46,66.31,4.15,0.99,65.37
+overexposure,exposure,540,35.08,20.73,14.35,4.68,55.56
+underexposure,exposure,540,35.08,42.07,-6.99,-5.91,47.59

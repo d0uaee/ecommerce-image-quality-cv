@@ -1,0 +1,24 @@
+{
+  "best_weights": {
+    "sharpness": 0.0881,
+    "exposure": 0.1041,
+    "contrast": 0.1173,
+    "color_balance": 0.084,
+    "effective_resolution": 0.0477,
+    "framing": 0.4139,
+    "coherence": 0.1449
+  },
+  "best_rho": 0.71298,
+  "best_p_value": 0.0,
+  "baseline_weights": {
+    "sharpness": 0.1914,
+    "exposure": 0.0251,
+    "contrast": 0.2214,
+    "color_balance": 0.0307,
+    "effective_resolution": 0.1299,
+    "framing": 0.3007,
+    "coherence": 0.1008
+  },
+  "baseline_rho": 0.635725,
+  "baseline_p_value": 1e-06
+}
